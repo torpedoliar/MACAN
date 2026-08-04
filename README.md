@@ -129,6 +129,43 @@ Skema database dan admin pertama dibuat otomatis saat boot pertama.
 
 ---
 
+## Update
+
+```bash
+./update.sh
+```
+
+Lima langkah, berhenti di langkah pertama yang gagal:
+
+1. **Backup database** ke `backups/macan_<tanggal>.sql` lewat `mariadb-dump
+   --single-transaction` — konsisten tanpa mengunci tabel, jadi RADIUS tetap
+   menjawab auth selama backup. Backup gagal = update dibatalkan, tidak ada satu
+   pun yang berubah.
+2. **`git pull --ff-only origin main`.** Gagal karena perubahan lokal? Container
+   masih versi lama, tidak ada yang rusak.
+3. **Build image `web` dan `radius`.** `radius` wajib ikut: file konfigurasinya
+   di-`COPY` ke dalam image, jadi restart saja tidak memuat perubahan.
+4. **Recreate container `web` dan `radius`** dengan `--no-deps`.
+5. **Tunggu `/health` menjawab 200.** Migrasi jalan saat `web` start, jadi ini
+   sekaligus bukti skema sudah tersinkron.
+
+Container `db` tidak pernah di-stop, di-rebuild, atau dihapus. `down` dan
+`down -v` tidak pernah dipanggil, jadi volume `db_data` tidak mungkin tersentuh.
+Sepuluh backup terbaru disimpan, sisanya dihapus.
+
+Kembali ke data sebelum update:
+
+```bash
+docker exec -i $(docker compose ps --format '{{.Name}}' db) \
+  sh -c 'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" macan' \
+  < backups/macan_<tanggal>.sql
+```
+
+> Isi `backups/` memuat shared secret RADIUS dan token Telegram. Folder ini ada
+> di `.gitignore`; jangan disalin ke tempat yang lebih longgar izinnya.
+
+---
+
 ## Menyambungkan UniFi
 
 **1. Tambahkan controller di MACan.** Menu **Controller → Tambah**. Isi nama,
@@ -257,6 +294,7 @@ masa simpan, menutup sesi basi, dan mengirim notifikasi yang tertunda.
 ```
 compose.yaml              tiga service: db, web, radius
 setup.sh                  bootstrap: cek docker, wizard .env, generate secret, up
+update.sh                 update: backup db, git pull, rebuild web+radius, tunggu /health
 db/schema.sql             skema awal, dijalankan MariaDB saat boot pertama
 radius/
   Dockerfile              FreeRADIUS + tiga file config di bawah
