@@ -230,11 +230,16 @@ docker compose up -d --build
 
 # Tunggu panel menjawab: migrasi database jalan saat start, jadi ada jeda antara
 # container "up" dan panel benar-benar melayani.
+#
+# Probe ke /health, bukan /login: /login sudah 200 begitu Express mengikat port,
+# padahal migrasi bisa belum selesai dan halaman pertama langsung error. /health
+# menanyakan database (SELECT 1) dan menjawab 503 selama belum siap, jadi 200 di
+# sini benar-benar berarti panel bisa dipakai.
 if command -v curl >/dev/null 2>&1; then
   printf 'menunggu panel siap'
   i=0
   while [ "$i" -lt 60 ]; do
-    if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:880/login 2>/dev/null)" = "200" ]; then
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:880/health 2>/dev/null)" = "200" ]; then
       say ''
       say ''
       rule

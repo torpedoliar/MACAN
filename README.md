@@ -124,6 +124,9 @@ Skema database dan admin pertama dibuat otomatis saat boot pertama.
 > `COOKIE_SECURE=1` di atas HTTP plain membuat cookie sesi tidak pernah terkirim —
 > login akan gagal tanpa pesan error. Biarkan `0` sampai HTTPS benar-benar aktif.
 
+`GET /health` (tanpa login) menjawab `{"status":"ok"}` kalau database terjangkau,
+`503` kalau tidak — dipakai `setup.sh` dan cocok untuk monitoring uptime.
+
 ---
 
 ## Menyambungkan UniFi
