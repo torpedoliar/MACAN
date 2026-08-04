@@ -73,13 +73,20 @@ cd MACAN
 ./setup.sh
 ```
 
-`setup.sh` memeriksa Docker, membuat `.env` dari template, **mengenerate
-`DB_PASSWORD`, `DB_ROOT_PASSWORD`, dan `SESSION_SECRET` secara acak**, lalu
-berhenti dan meminta kamu mengisi email serta password admin — dua nilai yang
-tidak bisa ditebak skrip. Jalankan lagi setelah mengisinya, dan skrip akan
-membangun serta menjalankan ketiga service, menunggu sampai panel menjawab.
+`setup.sh` memeriksa Docker lalu menjalankan **wizard empat langkah**:
 
-Aman dijalankan berulang: `.env` yang sudah ada tidak akan ditimpa.
+1. **Database** — `DB_PASSWORD` dan `DB_ROOT_PASSWORD` digenerate acak. Tidak ditanyakan; password ini hanya dipakai antar container.
+2. **Kunci sesi** — `SESSION_SECRET` digenerate acak (32 byte).
+3. **Admin pertama** — email dan password diminta. Password diketik dua kali, tidak ditampilkan, minimal 8 karakter.
+4. **Akses panel** — "Pakai HTTPS?" menentukan `COOKIE_SECURE`. Default `n`, yaitu aman untuk HTTP plain.
+
+Setelah itu `.env` ditulis dengan permission `600`, compose dibangun, dan skrip
+menunggu sampai panel menjawab sebelum menampilkan URL dan langkah berikutnya.
+
+Aman dijalankan berulang: nilai yang sudah terisi tidak ditanyakan lagi dan tidak
+ditimpa — wizard hanya menanyakan yang masih kosong. Tanpa terminal (mis. lewat
+pipe atau CI) skrip tetap men-generate ketiga rahasia, lalu berhenti dan
+menyebutkan nilai mana yang harus diisi manual.
 
 <details>
 <summary>Atau setup manual</summary>
@@ -98,6 +105,10 @@ docker compose up -d --build
 | `ADMIN_EMAIL` | email login admin pertama |
 | `ADMIN_PASSWORD` | password admin pertama |
 | `COOKIE_SECURE` | `0` untuk HTTP, `1` **hanya** kalau di belakang HTTPS |
+
+Docker Compose menginterpolasi isi `.env`, jadi `$` di dalam password harus
+ditulis `$$` — `Pa$word` sampai ke container sebagai `Pa` saja. `setup.sh`
+melakukan escape ini sendiri.
 
 </details>
 
@@ -242,7 +253,7 @@ masa simpan, menutup sesi basi, dan mengirim notifikasi yang tertunda.
 
 ```
 compose.yaml              tiga service: db, web, radius
-setup.sh                  bootstrap: cek docker, buat .env, generate secret, up
+setup.sh                  bootstrap: cek docker, wizard .env, generate secret, up
 db/schema.sql             skema awal, dijalankan MariaDB saat boot pertama
 radius/
   Dockerfile              FreeRADIUS + tiga file config di bawah
