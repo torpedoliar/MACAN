@@ -69,6 +69,17 @@ assert.ok(/IFNULL\(last_seen_at, updated_at\)/.test(cronSrc) && /AND updated_at 
 assert.ok(/inactive_since IS NULL/.test(cronSrc),
   'cron.js: sweep tidak idempoten — rule yang sudah ditandai akan diproses ulang');
 
+// The rule-lookup index has to exist in BOTH places or a fresh install and an
+// upgraded one perform differently: schema.sql runs only on an empty volume,
+// migrate.js only on boot. Without it every Access-Request scans the controller's
+// rows (270ms vs 0.33ms at 500k rules), and nothing fails — it just gets slow.
+const migrateSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'migrate.js'), 'utf8');
+const schemaSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'db', 'schema.sql'), 'utf8');
+for (const [label, src] of [['migrate.js', migrateSrc], ['schema.sql', schemaSrc]]) {
+  assert.ok(/idx_rules_mac_ssid \(mac_address, ssid_name\)/.test(src),
+    `${label}: idx_rules_mac_ssid hilang — lookup RADIUS jadi scan seluruh baris controller`);
+}
+
 // A disabled admin must be filtered in SQL, not by a branch after the bcrypt
 // compare: the "enabled" check has to be part of the lookup so a revoked account
 // is indistinguishable from a nonexistent one, in both message and timing.

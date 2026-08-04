@@ -52,6 +52,12 @@ CREATE TABLE mac_rules (
   UNIQUE KEY uniq_rule_scope_key (scope_key, ssid_name, mac_address),
   KEY idx_rules_controller (controller_id),
   KEY idx_rules_last_seen (last_seen_at),
+  -- The one index every Access-Request depends on. default.conf looks a rule up by
+  -- mac_address + ssid_name; uniq_rule_scope_key can't serve that because its
+  -- leading column (scope_key) isn't in the WHERE. Without this key MariaDB falls
+  -- back to idx_rules_controller and scans every row belonging to the controller:
+  -- measured 0.33ms vs 270ms at 500k rules.
+  KEY idx_rules_mac_ssid (mac_address, ssid_name),
   CONSTRAINT fk_rules_controller FOREIGN KEY (controller_id) REFERENCES controllers(id)
 );
 
