@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
 const { normalizeMac, parseSsid, chooseRule } = require('../src/radius-policy');
+const { loginLockedFor, loginFailed, loginSucceeded, MAX_FAILS } = require('../src/middleware');
 
 assert.equal(normalizeMac('AA-BB-CC-DD-EE-FF'), 'aa:bb:cc:dd:ee:ff');
 assert.equal(normalizeMac('aabbccddeeff'), 'aa:bb:cc:dd:ee:ff');
@@ -11,6 +12,28 @@ assert.equal(parseSsid('aa:bb:cc:dd:ee:ff:Office'), 'Office');
 assert.deepEqual(chooseRule({ status: 'deny' }, { status: 'allow' }), { result: 'reject', reason: 'rule deny' });
 assert.deepEqual(chooseRule(null, { status: 'allow' }), { result: 'accept', reason: 'rule allow' });
 assert.deepEqual(chooseRule(null, null), { result: 'reject', reason: 'rule tidak ditemukan' });
+
+// Login brake. Two buckets, so an attacker rotating X-Forwarded-For must still
+// trip the email bucket — that is the whole point of the second key and the part
+// that would silently rot if someone "simplified" loginKeys back to one.
+const attempt = (ip, email) => ({ ip, body: { email } });
+for (let i = 0; i < MAX_FAILS; i++) {
+  assert.equal(loginLockedFor(attempt('1.1.1.1', 'a@b.c')), 0, `terkunci terlalu cepat di percobaan ${i + 1}`);
+  loginFailed(attempt('1.1.1.1', 'a@b.c'));
+}
+assert.ok(loginLockedFor(attempt('1.1.1.1', 'a@b.c')) > 0, 'tidak terkunci setelah MAX_FAILS');
+// Same account from a fresh IP: still locked, via the email bucket.
+assert.ok(loginLockedFor(attempt('9.9.9.9', 'a@b.c')) > 0, 'ganti IP bisa lolos — bucket email tidak jalan');
+// Same IP, different account: locked too, via the IP bucket.
+assert.ok(loginLockedFor(attempt('1.1.1.1', 'z@b.c')) > 0, 'bucket IP tidak jalan');
+// An unrelated client is unaffected.
+assert.equal(loginLockedFor(attempt('2.2.2.2', 'c@d.e')), 0, 'klien lain ikut terkunci');
+loginSucceeded(attempt('1.1.1.1', 'a@b.c'));
+assert.equal(loginLockedFor(attempt('1.1.1.1', 'a@b.c')), 0, 'login sukses tidak menghapus hitungan');
+// Case-insensitive: A@B.C and a@b.c are the same account.
+loginSucceeded(attempt('1.1.1.1', 'A@B.C'));
+for (let i = 0; i < MAX_FAILS; i++) loginFailed(attempt('3.3.3.3', 'MiXeD@b.c'));
+assert.ok(loginLockedFor(attempt('4.4.4.4', 'mixed@b.c')) > 0, 'email tidak dinormalkan ke lowercase');
 
 // Every view must compile, and every POST form must carry a CSRF field. Both
 // classes of bug only surface at request time otherwise, and a broken view means
@@ -47,6 +70,30 @@ for (const file of files) {
   // back into an input would undo that.
   assert.ok(!/name="telegram_bot_token"[^>]*value=/.test(src),
     `${rel}: nilai telegram_bot_token tidak boleh dikembalikan ke input`);
+}
+
+// Over-length input hits STRICT_TRANS_TABLES and comes back as a 500 page unless
+// the browser stops it first, so every free-text field that lands in a VARCHAR
+// must carry maxlength — and it must match the column, not merely exist.
+const MAXLEN = {
+  'controllers/form': { name: 120, ip_address: 45, shared_secret: 255, note: 65535 },
+  'rules/form': { mac_address: 17, ssid_name: 128, owner_name: 160, device_name: 160 },
+  'ssids/index': { ssid_name: 128 }
+};
+for (const [view, fields] of Object.entries(MAXLEN)) {
+  // Strip EJS tags first: a `value="<%= x %>"` attribute contains a ">" that ends
+  // the [^>]* scan early, hiding attributes written after it.
+  const src = fs.readFileSync(path.join(VIEWS, view + '.ejs'), 'utf8').replace(/<%[\s\S]*?%>/g, '');
+  for (const [field, limit] of Object.entries(fields)) {
+    // TEXT columns (65535) are effectively unbounded for a form; skip those.
+    if (limit === 65535) continue;
+    const tag = new RegExp(`<(?:input|textarea)[^>]*name="${field}"[^>]*>`).exec(src);
+    assert.ok(tag, `${view}.ejs: field "${field}" tidak ditemukan`);
+    const found = /maxlength="(\d+)"/.exec(tag[0]);
+    assert.ok(found, `${view}.ejs: "${field}" tanpa maxlength — over-length jadi error 500`);
+    assert.equal(Number(found[1]), limit,
+      `${view}.ejs: maxlength "${field}" = ${found[1]}, kolomnya ${limit}`);
+  }
 }
 
 // Every route's res.render target must exist.
@@ -146,8 +193,8 @@ const CASES = {
     timeout: 120, show: 'all'
   },
   'audit/index': {
-    logs: [{ created_at: now, admin_email: 'a@b.c', action: 'login', details: { a: 1 } },
-           { created_at: now, admin_email: null, action: 'x', details: 'str' }],
+    logs: [{ created_at: now, admin_email: 'a@b.c', ip_address: '10.0.0.5', action: 'login', details: { a: 1 } },
+           { created_at: now, admin_email: null, ip_address: null, action: 'x', details: 'str' }],
     admins: [{ id: 1, email: 'a@b.c' }], total: 2, page: 1, pages: 1,
     filters: { action: '', admin_id: '' }
   },
@@ -181,5 +228,35 @@ for (const [view, locals] of Object.entries(CASES)) {
 assert.equal(Object.keys(CASES).length, rendered.size,
   `${rendered.size} view dirender oleh route, tapi hanya ${Object.keys(CASES).length} punya kasus render`);
 
-console.log(`self-check passed — ${files.length} view compile, ${rendered.size} view render (isi + kosong)`);
+// The audit IP travels through AsyncLocalStorage instead of a `req` argument, so
+// nothing at the call site shows whether it still works. Intercept at the pool —
+// audit.js destructures `query` at require time, so stubbing db.query would be
+// too late to be seen.
+const db = require('../src/db');
+const captured = [];
+db.pool.execute = async (sql, params) => { captured.push(params); return [[]]; };
+const { writeAudit, auditContext } = require('../src/audit');
+
+// Inside a request the IP must survive an await boundary — that is where a naive
+// module-level global would lose it and where ALS earns its place. Outside any
+// request (cron, startup) there is no store and the column must be NULL, not a
+// leftover from whichever request last ran on this tick.
+const auditChecks = new Promise(resolve => {
+  auditContext({ ip: '203.0.113.9' }, null, () => {
+    resolve((async () => {
+      await new Promise(r => setImmediate(r));
+      await writeAudit(1, 'login', {});
+      assert.equal(captured[0][2], '203.0.113.9', 'IP tidak terbawa lewat AsyncLocalStorage');
+    })());
+  });
+}).then(() => writeAudit(2, 'cron', {})).then(() => {
+  assert.strictEqual(captured[1][2], null, 'IP bocor ke pemanggil di luar request');
+});
+
+auditChecks.then(() => {
+  console.log(`self-check passed — ${files.length} view compile, ${rendered.size} view render (isi + kosong)`);
+  // The mysql2 pool was created by requiring db.js; nothing connected, but close
+  // it so the process exits on its own.
+  return db.pool.end().catch(() => {});
+});
 

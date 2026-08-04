@@ -59,12 +59,13 @@
   <% } else { %>
   <div class="table-wrap">
     <table class="data stackable">
-      <thead><tr><th>Waktu</th><th>Admin</th><th>Tindakan</th><th>Detail</th></tr></thead>
+      <thead><tr><th>Waktu</th><th>Admin</th><th>IP</th><th>Tindakan</th><th>Detail</th></tr></thead>
       <tbody>
         <% logs.forEach(l => { %>
         <tr>
           <td data-label="Waktu" class="num"><%= fmt(l.created_at) %></td>
           <td data-label="Admin"><%= l.admin_email || 'sistem' %></td>
+          <td data-label="IP" class="mono"><%= l.ip_address || '—' %></td>
           <td data-label="Tindakan"><span class="badge badge--accent"><%= l.action %></span></td>
           <td data-label="Detail" class="mono"><%= details(l.details) %></td>
         </tr>

@@ -45,6 +45,51 @@ class MysqlStore extends session.Store {
   }
 }
 
+// ponytail: in-memory counters instead of a rate-limit package. Single web
+// container, so one Map is enough; move to a table or redis if you ever run
+// replicas — each would count separately and the cap would multiply.
+const FAILS = new Map();
+const MAX_FAILS = 10;
+const LOCK_MS = 15 * 60 * 1000;
+
+// Two buckets per attempt. The IP bucket stops one host hammering. The email
+// bucket survives IP rotation: `trust proxy` is on, so a client can put anything
+// in X-Forwarded-For and mint a fresh req.ip per request — but brute-forcing a
+// given account still has to send that account's email.
+function loginKeys(req) {
+  return [`ip:${req.ip}`, `email:${String(req.body && req.body.email || '').toLowerCase().slice(0, 255)}`];
+}
+
+// Returns minutes remaining while locked, 0 when allowed.
+function loginLockedFor(req) {
+  const now = Date.now();
+  let max = 0;
+  for (const key of loginKeys(req)) {
+    const hit = FAILS.get(key);
+    if (hit && hit.n >= MAX_FAILS && hit.until > now) {
+      max = Math.max(max, Math.ceil((hit.until - now) / 60000));
+    }
+  }
+  return max;
+}
+
+function loginFailed(req) {
+  const now = Date.now();
+  // Bounded cleanup: expired entries only, and only once the map is large.
+  if (FAILS.size > 10000) {
+    for (const [key, hit] of FAILS) if (hit.until <= now) FAILS.delete(key);
+  }
+  for (const key of loginKeys(req)) {
+    const hit = FAILS.get(key);
+    // Sliding window: every failure pushes the expiry out again.
+    FAILS.set(key, { n: hit && hit.until > now ? hit.n + 1 : 1, until: now + LOCK_MS });
+  }
+}
+
+function loginSucceeded(req) {
+  for (const key of loginKeys(req)) FAILS.delete(key);
+}
+
 // Compares the submitted _csrf against the session token. Split out from `csrf`
 // because multipart routes can only run it after multer has parsed the body.
 function verifyCsrf(req, res, next) {
@@ -99,7 +144,26 @@ function wrap(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 }
 
+// ponytail: length limits enforced by the column definitions plus `maxlength` on
+// the inputs, not by a per-field check in every route. STRICT_TRANS_TABLES turns
+// over-length data into ER_DATA_TOO_LONG (1406) instead of a silent truncation,
+// so mapping that one errno here covers every column — including ones added
+// later. Upgrade path: if a field ever needs a limit the column does not express
+// (a business rule, not a storage bound), validate it in its own route.
+function dataTooLong(err) {
+  if (err.errno !== 1406) return null;
+  // Only the column name is echoed back; the full sqlMessage carries the query.
+  const column = /column '([^']+)'/.exec(err.sqlMessage || '');
+  return column
+    ? `Isi kolom "${column[1]}" terlalu panjang. Perpendek lalu simpan lagi.`
+    : 'Salah satu isian terlalu panjang. Perpendek lalu simpan lagi.';
+}
+
 function errorHandler(err, req, res, next) {
+  const tooLong = dataTooLong(err);
+  if (tooLong) {
+    err = Object.assign(new Error(tooLong), { status: 400 });
+  }
   const status = err.status || 500;
   if (status >= 500) console.error(err);
   const message = status >= 500
@@ -111,4 +175,7 @@ function errorHandler(err, req, res, next) {
   res.json({ error: message });
 }
 
-module.exports = { MysqlStore, csrf, verifyCsrf, maintenanceGuard, wrap, errorHandler };
+module.exports = {
+  MysqlStore, csrf, verifyCsrf, maintenanceGuard, wrap, errorHandler,
+  loginLockedFor, loginFailed, loginSucceeded, MAX_FAILS
+};

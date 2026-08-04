@@ -5,9 +5,11 @@ const path = require('path');
 const { ensureAdmin, requireAdmin } = require('./auth');
 const { query } = require('./db');
 const { migrate } = require('./migrate');
-const { writeAudit } = require('./audit');
+const { writeAudit, auditContext } = require('./audit');
 const { pendingCount } = require('./pending');
-const { MysqlStore, csrf, maintenanceGuard, wrap, errorHandler } = require('./middleware');
+const { MysqlStore, csrf, maintenanceGuard, wrap, errorHandler,
+        loginLockedFor, loginFailed, loginSucceeded } = require('./middleware');
+const { pool } = require('./db');
 
 const app = express();
 app.set('view engine', 'ejs');
@@ -20,6 +22,14 @@ app.set('view options', { root: path.join(__dirname, 'views') });
 app.set('trust proxy', 1);
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
+// Before session: a probe every few seconds would otherwise mint a session row
+// per hit. Unauthenticated on purpose — it leaks only up/down, which any port
+// scan already reveals. No version, no counts, no error text.
+app.get('/health', (req, res) => {
+  pool.query('SELECT 1')
+    .then(() => res.json({ status: 'ok' }))
+    .catch(() => res.status(503).json({ status: 'degraded' }));
+});
 app.use(session({
   name: 'macan.sid',
   secret: process.env.SESSION_SECRET,
@@ -36,6 +46,7 @@ app.use(session({
     maxAge: 8 * 3600 * 1000
   }
 }));
+app.use(auditContext);
 app.use(csrf);
 app.use((req, res, next) => {
   res.locals.admin = req.session && req.session.admin ? req.session.admin : null;
@@ -63,11 +74,21 @@ app.get('/login', (req, res) => {
 });
 
 app.post('/login', wrap(async (req, res) => {
+  // Brute-force brake. Checked before the bcrypt compare so a locked-out client
+  // also stops costing ~100ms of CPU per attempt.
+  const locked = loginLockedFor(req);
+  if (locked) {
+    return res.status(429).render('login', {
+      error: `Terlalu banyak percobaan gagal. Coba lagi dalam ${locked} menit.`
+    });
+  }
   const rows = await query('SELECT * FROM admins WHERE email = ?', [req.body.email || '']);
   const admin = rows[0];
   if (!admin || !(await bcrypt.compare(req.body.password || '', admin.password_hash))) {
+    loginFailed(req);
     return res.status(401).render('login', { error: 'Email atau password salah' });
   }
+  loginSucceeded(req);
   const token = req.session.csrfToken;
   // Rotate the session id on privilege change (session fixation).
   req.session.regenerate(err => {
@@ -102,11 +123,28 @@ app.use((req, res) => res.status(404).render('error', {
 }));
 app.use(errorHandler);
 
+const PORT = parseInt(process.env.PORT, 10) || 880;
+
 migrate()
   .then(ensureAdmin)
   .then(() => {
     require('./cron');
-    app.listen(880, () => console.log('MACan web listening on 880'));
+    const server = app.listen(PORT, () => console.log(`MACan web listening on ${PORT}`));
+    // Docker sends SIGTERM on stop/restart. Without this, Node dies immediately
+    // and any in-flight request — including a restore transaction — is cut off.
+    // Second signal or 10s timeout forces the exit so a stuck socket can't hang
+    // the container until Docker's own SIGKILL.
+    let closing = false;
+    const shutdown = signal => {
+      if (closing) return process.exit(1);
+      closing = true;
+      console.log(`${signal} diterima, menutup...`);
+      const force = setTimeout(() => process.exit(1), 10000);
+      force.unref();
+      server.close(() => pool.end().catch(() => {}).then(() => process.exit(0)));
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   })
   .catch(err => {
     console.error('Startup gagal:', err);

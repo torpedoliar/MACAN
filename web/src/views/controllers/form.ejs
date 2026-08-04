@@ -20,13 +20,13 @@
         <div class="field">
           <label class="field__label" for="name">Nama<span class="field__req" aria-hidden="true">*</span></label>
           <input type="text" id="name" name="name" required value="<%= controller.name || '' %>"
-                 placeholder="UniFi Pusat">
+                 maxlength="120" placeholder="UniFi Pusat">
         </div>
         <div class="field">
           <label class="field__label" for="ip_address">IP address / CIDR<span class="field__req" aria-hidden="true">*</span></label>
           <input type="text" id="ip_address" name="ip_address" required
                  value="<%= controller.ip_address || '' %>" placeholder="192.168.1.10"
-                 spellcheck="false" aria-describedby="ip-hint">
+                 maxlength="45" spellcheck="false" aria-describedby="ip-hint">
           <span class="field__hint" id="ip-hint">IP sumber request RADIUS. Boleh satu host (<code class="mono">192.168.1.10</code>) atau subnet (<code class="mono">192.168.1.0/24</code>).</span>
         </div>
       </div>
@@ -37,7 +37,7 @@
         </label>
         <input type="password" id="shared_secret" name="shared_secret"
                <%= controller.id ? '' : 'required' %> autocomplete="new-password"
-               minlength="8" aria-describedby="secret-hint"
+               minlength="8" maxlength="255" aria-describedby="secret-hint"
                placeholder="<%= controller.id ? 'Kosongkan bila tidak diganti' : 'Minimal 8 karakter' %>">
         <span class="field__hint" id="secret-hint">
           Minimal 8 karakter, harus sama dengan yang diisi di UniFi.

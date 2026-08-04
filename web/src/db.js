@@ -28,7 +28,13 @@ async function transaction(callback) {
     await connection.commit();
     return result;
   } catch (error) {
-    await connection.rollback();
+    // A failing rollback must not replace the error that caused it — that is the
+    // one the caller needs to see. Attach it instead.
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      error.rollbackError = rollbackError;
+    }
     throw error;
   } finally {
     connection.release();

@@ -23,6 +23,32 @@ const STATUSES = ['allow', 'deny', 'disabled'];
 const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 8 * 1024 * 1024 } });
 const STAGING = path.join(os.tmpdir(), 'macan-restore');
 
+// Staged uploads and pre-restore snapshots contain shared secrets and the
+// telegram token, so they are owner-only. mkdir mode is masked by umask; chmod
+// after the fact is what actually guarantees 0700/0600.
+function stagingDir() {
+  fs.mkdirSync(STAGING, { recursive: true });
+  try { fs.chmodSync(STAGING, 0o700); } catch {}
+  return STAGING;
+}
+
+// Nothing else cleans STAGING: a preview that is never confirmed leaves its file
+// behind forever. Sweep on every preview — one readdir, no timer needed.
+function sweepStaging() {
+  const now = Date.now();
+  let entries = [];
+  try { entries = fs.readdirSync(STAGING); } catch { return; }
+  for (const name of entries) {
+    // The session cookie caps at 8h, so a 24h-old staged upload is abandoned.
+    // Snapshots are the undo path for a bad restore — keep those 30 days.
+    const maxAge = name.startsWith('pre-restore-') ? 30 * 864e5 : 864e5;
+    try {
+      const file = path.join(STAGING, name);
+      if (now - fs.statSync(file).mtimeMs > maxAge) fs.unlinkSync(file);
+    } catch {}
+  }
+}
+
 async function buildBackup() {
   const data = {};
   for (const table of TABLES) {
@@ -91,13 +117,23 @@ router.get('/backup', wrap(async (req, res) => {
   res.send(JSON.stringify(backup, null, 2));
 }));
 
+// multer writes the temp file before verifyCsrf or any handler runs, so a 403 or
+// a thrown error leaves it in /tmp forever. Unlink on response close covers every
+// exit path at once; on the happy path the file was already renamed away and the
+// unlink is a harmless ENOENT.
+function reapTempOnClose(req, res, next) {
+  if (req.file) {
+    res.on('close', () => {
+      try { fs.unlinkSync(req.file.path); } catch {}
+    });
+  }
+  next();
+}
+
 // Step 1 of restore: parse, validate, stage on disk, show a preview.
 // verifyCsrf runs after multer — see the note in middleware.js.
-router.post('/restore/preview', upload.single('backup'), verifyCsrf, wrap(async (req, res) => {
-  const bail = msg => {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
-    return res.redirect('/data?error=' + encodeURIComponent(msg));
-  };
+router.post('/restore/preview', upload.single('backup'), reapTempOnClose, verifyCsrf, wrap(async (req, res) => {
+  const bail = msg => res.redirect('/data?error=' + encodeURIComponent(msg));
   if (!req.file) return bail('File backup tidak ditemukan.');
 
   let parsed;
@@ -115,9 +151,11 @@ router.post('/restore/preview', upload.single('backup'), verifyCsrf, wrap(async 
     current[table] = Number(rows[0].count);
   }
 
-  fs.mkdirSync(STAGING, { recursive: true });
-  const staged = path.join(STAGING, `${req.sessionID}.json`);
-  fs.renameSync(req.file.path, staged);
+  sweepStaging();
+  const staged = path.join(stagingDir(), `${req.sessionID}.json`);
+  // copy+unlink, not rename: os.tmpdir() and STAGING can be different mounts.
+  fs.copyFileSync(req.file.path, staged);
+  fs.chmodSync(staged, 0o600);
   req.session.restore = {
     file: staged,
     preview: {
@@ -152,9 +190,8 @@ router.post('/restore/confirm', wrap(async (req, res) => {
 
   // Safety net: snapshot current state before wiping it.
   const snapshot = await buildBackup();
-  fs.mkdirSync(STAGING, { recursive: true });
-  const snapshotPath = path.join(STAGING, `pre-restore-${Date.now()}.json`);
-  fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2));
+  const snapshotPath = path.join(stagingDir(), `pre-restore-${Date.now()}.json`);
+  fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2), { mode: 0o600 });
 
   await transaction(async conn => {
     await conn.query('SET FOREIGN_KEY_CHECKS = 0');

@@ -43,7 +43,11 @@ async function migrate() {
     KEY idx_notif_key (event_key, sent_at)
   )`);
 
-  // 4. Settings added after first boot.
+  // 4. Who acted from where. Existing rows keep NULL — the information was never
+  //    captured, and inventing it would be worse than admitting the gap.
+  await raw('ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45) NULL AFTER action');
+
+  // 5. Settings added after first boot.
   const defaults = {
     auth_log_retention_days: '90',
     online_session_timeout_minutes: '120',

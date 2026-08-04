@@ -90,6 +90,7 @@ CREATE TABLE audit_logs (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   admin_id BIGINT NULL,
   action VARCHAR(120) NOT NULL,
+  ip_address VARCHAR(45) NULL,
   details JSON NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES admins(id)

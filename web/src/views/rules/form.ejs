@@ -21,13 +21,13 @@
           <label class="field__label" for="mac_address">MAC address<span class="field__req" aria-hidden="true">*</span></label>
           <input type="text" id="mac_address" name="mac_address" required
                  value="<%= rule.mac_address || '' %>" placeholder="aa:bb:cc:dd:ee:ff"
-                 autocapitalize="none" spellcheck="false" aria-describedby="mac-hint">
+                 maxlength="17" autocapitalize="none" spellcheck="false" aria-describedby="mac-hint">
           <span class="field__hint" id="mac-hint">12 karakter hex. Pemisah <code class="mono">:</code>, <code class="mono">-</code>, <code class="mono">.</code>, atau tanpa pemisah — semua dinormalkan.</span>
         </div>
         <div class="field">
           <label class="field__label" for="ssid_name">SSID<span class="field__req" aria-hidden="true">*</span></label>
           <input type="text" id="ssid_name" name="ssid_name" required
-                 value="<%= rule.ssid_name || '' %>" spellcheck="false">
+                 value="<%= rule.ssid_name || '' %>" maxlength="128" spellcheck="false">
         </div>
       </div>
 
@@ -58,11 +58,11 @@
         <div class="grid-2">
           <div class="field">
             <label class="field__label" for="owner_name">Pemilik</label>
-            <input type="text" id="owner_name" name="owner_name" value="<%= rule.owner_name || '' %>">
+            <input type="text" id="owner_name" name="owner_name" maxlength="160" value="<%= rule.owner_name || '' %>">
           </div>
           <div class="field">
             <label class="field__label" for="device_name">Perangkat</label>
-            <input type="text" id="device_name" name="device_name" value="<%= rule.device_name || '' %>">
+            <input type="text" id="device_name" name="device_name" maxlength="160" value="<%= rule.device_name || '' %>">
           </div>
         </div>
         <div class="field" style="margin-bottom:0">
