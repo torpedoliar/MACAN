@@ -6,6 +6,11 @@ services:
       MARIADB_USER: macan
       MARIADB_PASSWORD: ${DB_PASSWORD}
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      # TZ harus sama di ketiga service. NOW() dan TIMESTAMP dirender memakai
+      # time_zone sesi, sementara dashboard.js membentuk kunci jam grafik dari
+      # waktu lokal Node — kalau db dan web beda zona, semua bucket luput dan
+      # grafik 24 jam terbaca nol tanpa satu pun error.
+      TZ: ${TZ:-Asia/Jakarta}
     volumes:
       - db_data:/var/lib/mysql
       - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
@@ -30,6 +35,7 @@ services:
       # Set to 1 only when serving over HTTPS, otherwise the session cookie
       # is never sent and login silently fails.
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      TZ: ${TZ:-Asia/Jakarta}
     ports:
       - "880:880"
     depends_on:
@@ -42,6 +48,7 @@ services:
     build: ./radius
     environment:
       DB_PASSWORD: ${DB_PASSWORD}
+      TZ: ${TZ:-Asia/Jakarta}
     ports:
       - "1812:1812/udp"
       - "1813:1813/udp"

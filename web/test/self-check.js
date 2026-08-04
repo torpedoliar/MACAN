@@ -105,7 +105,25 @@ const schemaSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'db', 'schema
 for (const [label, src] of [['migrate.js', migrateSrc], ['schema.sql', schemaSrc]]) {
   assert.ok(/idx_rules_mac_ssid \(mac_address, ssid_name\)/.test(src),
     `${label}: idx_rules_mac_ssid hilang — lookup RADIUS jadi scan seluruh baris controller`);
+  // Grup SSID harus ada di kedua tempat, sama alasannya: instalasi baru memakai
+  // schema.sql, yang sudah jalan memakai migrate.js.
+  assert.ok(/ssid_group_members/.test(src), `${label}: tabel ssid_group_members hilang`);
+  assert.ok(/ssid_group_id/.test(src), `${label}: kolom mac_rules.ssid_group_id hilang`);
 }
+
+// Rule grup diperluas jadi satu baris mac_rules per SSID anggota, justru supaya
+// radius/default.conf tetap satu SELECT per (mac_address, ssid_name). Kalau
+// default.conf mulai menyebut grup, perluasan itu sudah dilangkahi dan lookup-nya
+// tidak lagi memakai idx_rules_mac_ssid.
+assert.ok(!/ssid_group/.test(policy),
+  'default.conf: menyentuh tabel grup — hot path harus tetap satu SELECT per (mac, ssid)');
+const groupsSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'ssid-groups.js'), 'utf8');
+// Anggota yang dicabut harus kehilangan barisnya. Tanpa DELETE ini, mengeluarkan
+// SSID dari grup tidak mencabut akses MAC mana pun — gagal tanpa satu pun error.
+assert.ok(/DELETE FROM mac_rules/.test(groupsSrc) && /ssid_group_id = \?/.test(groupsSrc),
+  'ssid-groups.js: perluasan tidak membuang anggota yang dicabut');
+assert.ok(/ssid_group_id\s*=\s*NULL/.test(rulesSrc),
+  'rules.js: edit rule per-SSID tidak melepas ssid_group_id — syncGroup akan memakainya sebagai cetakan');
 
 // A disabled admin must be filtered in SQL, not by a branch after the bcrypt
 // compare: the "enabled" check has to be part of the lookup so a revoked account
@@ -262,11 +280,12 @@ const CASES = {
   'rules/index': {
     rules: [{ id: 1, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: null,
               controller_name: null, status: 'allow', owner_name: 'B', device_name: 'D',
-              note: 'n', updated_at: now, last_seen_at: now }],
+              note: 'n', updated_at: now, last_seen_at: now, ssid_group_id: 1, group_name: 'Karyawan' }],
     controllers: [{ id: 1, name: 'C' }], filters: { q: '', status: '', controller_id: '' },
     imported: '3', skipped: '1', error: 'e'
   },
-  'rules/form': { rule: {}, controllers: [{ id: 1, name: 'C' }], error: 'e' },
+  'rules/form': { rule: {}, controllers: [{ id: 1, name: 'C' }],
+                  groups: [{ id: 1, name: 'Karyawan', member_count: 2 }], error: 'e' },
   'approvals/index': {
     pending: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
                 controller_name: 'C', last_seen: now, hit_count: 3 }],
@@ -281,6 +300,12 @@ const CASES = {
     ssids: [{ id: 1, ssid_name: 'S', controller_name: 'C', enabled: 1, auto_created: 1,
               rule_count: 1, last_seen_at: now }],
     controllers: [{ id: 1, name: 'C' }], error: 'e', notice: 'n'
+  },
+  'ssid-groups/index': {
+    groups: [{ id: 1, name: 'Karyawan', note: 'n', member_count: 2, rule_count: 3, members: 'S, T' },
+             // Grup tanpa anggota dan tanpa catatan: kedua cabang view harus jalan.
+             { id: 2, name: 'Tamu', note: null, member_count: 0, rule_count: 0, members: null }],
+    known: [{ ssid_name: 'S' }, { ssid_name: 'T' }], error: 'e', notice: 'n'
   },
   'logs/index': {
     logs: [{ created_at: now, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S',
@@ -321,7 +346,7 @@ const CASES = {
     hasSecret: { telegram_bot_token: true }, errors: ['e'], saved: '1', tested: 'ok'
   },
   'data/index': {
-    counts: { controllers: 1, ssids: 2, mac_rules: 3, settings: 9 },
+    counts: { controllers: 1, ssids: 2, ssid_groups: 1, ssid_group_members: 2, mac_rules: 3, settings: 9 },
     staged: { generated_at: now, rows: [{ table: 'controllers', incoming: 1, current: 1 }] },
     error: 'e', notice: 'n'
   }
@@ -342,6 +367,31 @@ for (const [view, locals] of Object.entries(CASES)) {
 }
 assert.equal(Object.keys(CASES).length, rendered.size,
   `${rendered.size} view dirender oleh route, tapi hanya ${Object.keys(CASES).length} punya kasus render`);
+
+// Perluasan rule grup dengan query di-stub. Dua hal yang harus benar dan tidak
+// terlihat dari mana pun di call site: satu upsert per anggota grup, dan satu
+// DELETE penutup untuk anggota yang dicabut. Tanpa DELETE itu, mengeluarkan SSID
+// dari grup tidak mencabut akses MAC mana pun dan tidak memunculkan error apa pun.
+const dbStub = require('../src/db');
+const realQuery = dbStub.query;
+const seenSql = [];
+dbStub.query = async sql => {
+  seenSql.push(sql.replace(/\s+/g, ' ').trim());
+  return /^\s*SELECT/.test(sql) ? [{ ssid_name: 'A' }, { ssid_name: 'B' }] : { affectedRows: 1 };
+};
+const { applyGroupRule } = require('../src/ssid-groups');
+const groupCheck = applyGroupRule({
+  groupId: 7, controllerId: null, mac: 'aa:bb:cc:dd:ee:ff', status: 'allow'
+}).then(res => {
+  assert.equal(res.applied, 2, 'perluasan tidak menulis satu baris per anggota grup');
+  assert.equal(seenSql.filter(s => s.startsWith('INSERT INTO mac_rules')).length, 2,
+    'jumlah upsert tidak sama dengan jumlah anggota grup');
+  assert.ok(seenSql.some(s => s.startsWith('DELETE FROM mac_rules') && /NOT IN/.test(s)),
+    'anggota grup yang dicabut tidak dibuang');
+});
+// ssid-groups.js men-destructure `query` saat require, jadi ia tetap memegang stub
+// di atas walau db.query dikembalikan sekarang — dan audit di bawah butuh yang asli.
+dbStub.query = realQuery;
 
 // The audit IP travels through AsyncLocalStorage instead of a `req` argument, so
 // nothing at the call site shows whether it still works. Intercept at the pool —
@@ -368,7 +418,7 @@ const auditChecks = new Promise(resolve => {
   assert.strictEqual(captured[1][2], null, 'IP bocor ke pemanggil di luar request');
 });
 
-auditChecks.then(() => {
+auditChecks.then(() => groupCheck).then(() => {
   console.log(`self-check passed — ${files.length} view compile, ${rendered.size} view render (isi + kosong)`);
   // The mysql2 pool was created by requiring db.js; nothing connected, but close
   // it so the process exits on its own.

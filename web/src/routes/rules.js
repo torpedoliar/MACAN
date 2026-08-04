@@ -3,6 +3,7 @@ const { parse } = require('csv-parse/sync');
 const { query } = require('../db');
 const { writeAudit } = require('../audit');
 const { normalizeMac } = require('../radius-policy');
+const { applyGroupRule } = require('../ssid-groups');
 const { wrap, verifyCsrf } = require('../middleware');
 const multer = require('multer');
 const os = require('os');
@@ -54,9 +55,10 @@ router.get('/', wrap(async (req, res) => {
     params.push(controller_id);
   }
   const rules = await query(`
-    SELECT r.*, c.name AS controller_name
+    SELECT r.*, c.name AS controller_name, g.name AS group_name
     FROM mac_rules r
     LEFT JOIN controllers c ON r.controller_id = c.id
+    LEFT JOIN ssid_groups g ON r.ssid_group_id = g.id
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ORDER BY r.updated_at DESC
     LIMIT 500
@@ -75,7 +77,9 @@ router.get('/', wrap(async (req, res) => {
 router.get('/template.csv', (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="macan-rules-template.csv"');
-  res.send(`${CSV_HEADER}\nglobal,,Office-WiFi,aa:bb:cc:dd:ee:ff,allow,Budi,Laptop Budi,contoh baris\ncontroller,UniFi Pusat,Office-WiFi,aabbccddeeff,deny,,,MAC diblokir\n`);
+  // Baris ketiga memakai konvensi "group:Nama" di kolom ssid — dipilih daripada
+  // menambah kolom baru supaya CSV lama tetap terbaca apa adanya.
+  res.send(`${CSV_HEADER}\nglobal,,Office-WiFi,aa:bb:cc:dd:ee:ff,allow,Budi,Laptop Budi,contoh baris\ncontroller,UniFi Pusat,Office-WiFi,aabbccddeeff,deny,,,MAC diblokir\nglobal,,group:Karyawan,aa:bb:cc:dd:ee:01,allow,Sari,HP Sari,dipasang ke semua SSID anggota grup\n`);
 });
 
 router.get('/export.csv', wrap(async (req, res) => {
@@ -125,6 +129,10 @@ router.post('/import', upload.single('csv'), verifyCsrf, wrap(async (req, res) =
 
   const controllers = await query('SELECT id, name FROM controllers');
   const byName = new Map(controllers.map(c => [c.name.toLowerCase(), c.id]));
+  // Kolom ssid boleh berisi "group:Nama Grup". Dipilih daripada menambah kolom
+  // baru supaya template dan file CSV lama tetap terbaca apa adanya.
+  const groups = await query('SELECT id, name FROM ssid_groups');
+  const groupByName = new Map(groups.map(g => [g.name.toLowerCase(), g.id]));
 
   let imported = 0;
   const errors = [];
@@ -151,6 +159,17 @@ router.post('/import', upload.single('csv'), verifyCsrf, wrap(async (req, res) =
     }
 
     try {
+      if (/^group:/i.test(ssid)) {
+        const groupName = ssid.slice(6).trim();
+        const groupId = groupByName.get(groupName.toLowerCase());
+        if (!groupId) { fail(`grup SSID "${groupName}" tidak ditemukan`); continue; }
+        const { applied } = await applyGroupRule({
+          groupId, controllerId, mac: normalized, status: statusLower, owner, device, note
+        });
+        if (!applied) { fail(`grup SSID "${groupName}" belum punya anggota`); continue; }
+        imported++;
+        continue;
+      }
       await query(`INSERT INTO mac_rules (controller_id, ssid_name, mac_address, status, owner_name, device_name, note)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE status = VALUES(status), owner_name = VALUES(owner_name),
@@ -173,12 +192,20 @@ router.post('/import', upload.single('csv'), verifyCsrf, wrap(async (req, res) =
 
 router.get('/new', wrap(async (req, res) => {
   const controllers = await query('SELECT id, name FROM controllers ORDER BY name');
-  res.render('rules/form', { rule: {}, controllers, error: null });
+  const groups = await query(`
+    SELECT g.id, g.name,
+      (SELECT COUNT(*) FROM ssid_group_members m WHERE m.group_id = g.id) AS member_count
+    FROM ssid_groups g ORDER BY g.name
+  `);
+  res.render('rules/form', { rule: {}, controllers, groups, error: null });
 }));
 
 async function saveRule(req, res, id) {
   const controllerId = clean(req.body.controller_id);
   const ssid = clean(req.body.ssid_name);
+  // Target grup dikirim sebagai id grup; kalau ada, ssid_name diabaikan dan rule
+  // diperluas jadi satu baris per anggota grup (lihat ssid-groups.js).
+  const groupId = clean(req.body.ssid_group_id);
   const mac = normalizeMac(req.body.mac_address);
   const status = String(clean(req.body.status) || '').toLowerCase();
   const values = [
@@ -187,23 +214,47 @@ async function saveRule(req, res, id) {
   ];
 
   const controllers = await query('SELECT id, name FROM controllers ORDER BY name');
+  const groups = await query(`
+    SELECT g.id, g.name,
+      (SELECT COUNT(*) FROM ssid_group_members m WHERE m.group_id = g.id) AS member_count
+    FROM ssid_groups g ORDER BY g.name
+  `);
   const rerender = error => res.status(400).render('rules/form', {
     rule: { id, controller_id: controllerId, ssid_name: ssid, mac_address: req.body.mac_address, status,
+            ssid_group_id: groupId,
             owner_name: req.body.owner_name, device_name: req.body.device_name, note: req.body.note },
-    controllers, error
+    controllers, groups, error
   });
 
-  if (!ssid) return rerender('SSID wajib diisi.');
   if (!mac) return rerender('MAC address tidak valid. Gunakan 12 karakter hex, contoh aa:bb:cc:dd:ee:ff.');
   if (!STATUSES.includes(status)) return rerender('Status harus allow, deny, atau disabled.');
+
+  if (groupId) {
+    const members = await query('SELECT ssid_name FROM ssid_group_members WHERE group_id = ?', [groupId]);
+    if (!members.length) return rerender('Grup itu belum punya anggota SSID. Isi anggotanya dulu di halaman Grup SSID.');
+    // Rule per-SSID yang diedit jadi rule grup: baris lamanya dibuang supaya tidak
+    // tertinggal sebagai rule manual di satu SSID yang bukan anggota grup.
+    if (id) await query('DELETE FROM mac_rules WHERE id = ?', [id]);
+    const { applied, removed } = await applyGroupRule({
+      groupId, controllerId, mac, status,
+      owner: clean(req.body.owner_name), device: clean(req.body.device_name), note: clean(req.body.note)
+    });
+    await writeAudit(req.session.admin.id, id ? 'rule_update' : 'rule_create',
+      { mac, status, group_id: Number(groupId), applied, removed });
+    return res.redirect('/rules');
+  }
+
+  if (!ssid) return rerender('SSID wajib diisi, atau pilih grup SSID.');
 
   try {
     if (id) {
       // inactive_since cleared on an admin edit: re-allowing a rule the cron
       // denied must reset the marker, or the badge would outlive the fix. The
       // clock itself resets via updated_at, which the sweep reads.
+      // ssid_group_id dikosongkan: rule ini sekarang berdiri sendiri, dan
+      // membiarkannya akan membuat syncGroup memakainya sebagai cetakan.
       await query(`UPDATE mac_rules SET controller_id=?, ssid_name=?, mac_address=?, status=?,
-        owner_name=?, device_name=?, note=?, inactive_since=NULL WHERE id=?`, [...values, id]);
+        owner_name=?, device_name=?, note=?, inactive_since=NULL, ssid_group_id=NULL WHERE id=?`, [...values, id]);
       await writeAudit(req.session.admin.id, 'rule_update', { id, mac, status });
     } else {
       await query(`INSERT INTO mac_rules (controller_id, ssid_name, mac_address, status, owner_name, device_name, note)
@@ -223,7 +274,12 @@ router.get('/:id/edit', wrap(async (req, res) => {
   const rules = await query('SELECT * FROM mac_rules WHERE id = ?', [req.params.id]);
   if (!rules.length) return res.redirect('/rules');
   const controllers = await query('SELECT id, name FROM controllers ORDER BY name');
-  res.render('rules/form', { rule: rules[0], controllers, error: null });
+  const groups = await query(`
+    SELECT g.id, g.name,
+      (SELECT COUNT(*) FROM ssid_group_members m WHERE m.group_id = g.id) AS member_count
+    FROM ssid_groups g ORDER BY g.name
+  `);
+  res.render('rules/form', { rule: rules[0], controllers, groups, error: null });
 }));
 
 router.post('/:id', wrap((req, res) => saveRule(req, res, req.params.id)));

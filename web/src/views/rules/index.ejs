@@ -91,7 +91,12 @@
         <% rules.forEach(r => { %>
         <tr>
           <td data-label="MAC" class="mono"><%= r.mac_address %></td>
-          <td data-label="SSID"><%= r.ssid_name %></td>
+          <td data-label="SSID">
+            <%= r.ssid_name %>
+            <% if (r.ssid_group_id) { %>
+            <span class="badge badge--info" title="Dipasang lewat grup SSID <%= r.group_name || ('#' + r.ssid_group_id) %>">grup: <%= r.group_name || ('#' + r.ssid_group_id) %></span>
+            <% } %>
+          </td>
           <td data-label="Scope">
             <% if (r.controller_id) { %><%= r.controller_name || ('#' + r.controller_id) %><% } else { %>
             <span class="badge badge--accent">Global</span><% } %>
@@ -144,6 +149,8 @@
           (kalau <code class="mono">controller</code>, kolom <code class="mono">controller</code> harus berisi nama controller yang sudah terdaftar).
           MAC boleh dengan atau tanpa pemisah. Baris header opsional. Maksimal 2 MB.
           Rule yang sudah ada akan diperbarui, bukan diduplikasi.
+          Untuk memasang satu MAC ke seluruh SSID dalam satu grup, isi kolom
+          <code class="mono">ssid</code> dengan <code class="mono">group:Nama Grup</code>.
         </span>
       </div>
       <button class="btn btn--primary" type="submit">

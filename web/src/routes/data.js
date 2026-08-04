@@ -15,8 +15,12 @@ const router = express.Router();
 // tables only (rules/ssids/controllers/settings) — logs and sessions are
 // operational data and are not backed up. Add mariadb-client to the image if you
 // ever need a full physical dump.
-const BACKUP_VERSION = 1;
-const TABLES = ['controllers', 'ssids', 'mac_rules', 'settings'];
+const BACKUP_VERSION = 2;
+// ssid_groups + ssid_group_members ikut karena mac_rules.ssid_group_id menunjuk ke
+// sana: memulihkan rule tanpa grupnya akan membuat baris hasil perluasan kehilangan
+// asalnya dan tidak bisa disinkronkan lagi. Konsekuensinya berkas backup versi 1
+// ditolak saat restore — ambil backup baru setelah upgrade.
+const TABLES = ['controllers', 'ssids', 'ssid_groups', 'ssid_group_members', 'mac_rules', 'settings'];
 const SECRET_SETTINGS = ['telegram_bot_token'];
 const STATUSES = ['allow', 'deny', 'disabled'];
 
@@ -49,6 +53,12 @@ function sweepStaging() {
   }
 }
 
+// Waktu lokal (WIB lewat TZ di compose.yaml), bukan toISOString() yang selalu UTC:
+// generated_at dibaca operator apa adanya di halaman pratinjau, dan nama berkas
+// backup dipakai untuk mencocokkan dengan jam kejadian. 'sv-SE' dipilih karena
+// itu satu-satunya locale bawaan yang memberi format "YYYY-MM-DD HH:MM:SS".
+const localStamp = () => new Date().toLocaleString('sv-SE');
+
 async function buildBackup() {
   const data = {};
   for (const table of TABLES) {
@@ -56,7 +66,7 @@ async function buildBackup() {
   }
   return {
     backup_version: BACKUP_VERSION,
-    generated_at: new Date().toISOString(),
+    generated_at: localStamp(),
     app: 'macan',
     counts: TABLES.reduce((acc, t) => ({ ...acc, [t]: data[t].length }), {}),
     data
@@ -110,7 +120,7 @@ router.get('/', wrap(async (req, res) => {
 
 router.get('/backup', wrap(async (req, res) => {
   const backup = await buildBackup();
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const stamp = localStamp().replace(/[: ]/g, '-');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="macan-backup-${stamp}.json"`);
   await writeAudit(req.session.admin.id, 'backup_download', { counts: backup.counts });
@@ -198,6 +208,8 @@ router.post('/restore/confirm', wrap(async (req, res) => {
     try {
       // Child tables first so FK order never matters even with checks re-enabled.
       await conn.query('DELETE FROM mac_rules');
+      await conn.query('DELETE FROM ssid_group_members');
+      await conn.query('DELETE FROM ssid_groups');
       await conn.query('DELETE FROM ssids');
       await conn.query('DELETE FROM controllers');
 
@@ -213,13 +225,21 @@ router.post('/restore/confirm', wrap(async (req, res) => {
           [s.id, s.controller_id, s.ssid_name, s.enabled ? 1 : 0, s.auto_created ? 1 : 0, s.last_seen_at ?? null]
         );
       }
+      for (const g of parsed.data.ssid_groups) {
+        await conn.execute('INSERT INTO ssid_groups (id, name, note) VALUES (?, ?, ?)',
+          [g.id, g.name, g.note ?? null]);
+      }
+      for (const m of parsed.data.ssid_group_members) {
+        await conn.execute('INSERT INTO ssid_group_members (group_id, ssid_name) VALUES (?, ?)',
+          [m.group_id, m.ssid_name]);
+      }
       for (const r of parsed.data.mac_rules) {
         await conn.execute(
-          `INSERT INTO mac_rules (id, controller_id, ssid_name, mac_address, status, owner_name, device_name, note, last_seen_at, inactive_since)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO mac_rules (id, controller_id, ssid_name, mac_address, status, owner_name, device_name, note, ssid_group_id, last_seen_at, inactive_since)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [r.id, r.controller_id ?? null, r.ssid_name, normalizeMac(r.mac_address), String(r.status),
-           r.owner_name ?? null, r.device_name ?? null, r.note ?? null, r.last_seen_at ?? null,
-           r.inactive_since ?? null]
+           r.owner_name ?? null, r.device_name ?? null, r.note ?? null, r.ssid_group_id ?? null,
+           r.last_seen_at ?? null, r.inactive_since ?? null]
         );
       }
       for (const s of parsed.data.settings) {

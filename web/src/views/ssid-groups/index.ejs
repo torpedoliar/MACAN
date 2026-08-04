@@ -1,0 +1,106 @@
+<%- include('/partials/head', { title: 'Grup SSID' }) %>
+
+<% if (error) { %>
+<div class="alert alert--danger" role="alert">
+  <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+  <div><%= error %></div>
+</div>
+<% } %>
+<% if (notice) { %>
+<div class="alert alert--success" role="status" data-autodismiss>
+  <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+  <div><%= notice %></div>
+</div>
+<% } %>
+
+<section class="card">
+  <div class="card__head"><h2>Grup SSID</h2></div>
+  <div class="card__body">
+    <p class="card__hint">Grup dipakai saat menambah rule MAC: pilih grup, dan rule itu
+      dipasang sekaligus di setiap SSID anggotanya. Mengubah anggota grup langsung
+      memperbarui semua rule yang memakainya.</p>
+  </div>
+  <% if (!groups.length) { %>
+    <div class="card__body empty">
+      <svg class="icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
+      <h3>Belum ada grup</h3>
+      <p>Buat grup di bawah, misalnya <strong>Karyawan</strong> untuk SSID kantor dan
+        <strong>Tamu</strong> untuk SSID pengunjung.</p>
+    </div>
+  <% } else { %>
+    <% groups.forEach(g => { %>
+    <div class="card__body" style="border-top:1px solid var(--border)">
+      <div class="card__head" style="padding:0 0 12px">
+        <h3 style="margin:0"><%= g.name %>
+          <span class="badge badge--accent"><%= g.member_count %> SSID</span>
+          <span class="badge"><%= g.rule_count %> rule</span>
+        </h3>
+        <form action="/ssid-groups/<%= g.id %>/delete" method="POST"
+              data-confirm="Hapus grup <%= g.name %>? Rule yang sudah terpasang tetap berlaku.">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn btn--sm btn--danger" type="submit">
+            <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
+            Hapus grup
+          </button>
+        </form>
+      </div>
+      <% if (g.note) { %><p class="card__hint"><%= g.note %></p><% } %>
+
+      <form action="/ssid-groups/<%= g.id %>/members" method="POST">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% const current = (g.members || '').split(', ').filter(Boolean); %>
+        <% if (!known.length) { %>
+          <p class="card__hint">Belum ada SSID di inventaris. Tambahkan dulu di
+            <a href="/ssids">halaman SSID</a>.</p>
+        <% } else { %>
+        <fieldset>
+          <legend>Anggota SSID</legend>
+          <div class="grid-2">
+            <% known.forEach(s => { %>
+            <label class="check">
+              <input type="checkbox" name="ssid_name" value="<%= s.ssid_name %>"
+                     <%= current.includes(s.ssid_name) ? 'checked' : '' %>>
+              <span><%= s.ssid_name %></span>
+            </label>
+            <% }) %>
+          </div>
+        </fieldset>
+        <div class="btn-row">
+          <button class="btn btn--primary btn--sm" type="submit">
+            <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+            Simpan anggota
+          </button>
+        </div>
+        <% } %>
+      </form>
+    </div>
+    <% }) %>
+  <% } %>
+</section>
+
+<section class="card">
+  <div class="card__head"><h2>Grup baru</h2></div>
+  <div class="card__body">
+    <form action="/ssid-groups" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="grid-2">
+        <div class="field">
+          <label class="field__label" for="name">Nama grup<span class="field__req" aria-hidden="true">*</span></label>
+          <input type="text" id="name" name="name" required maxlength="120"
+                 placeholder="Karyawan" aria-describedby="name-hint">
+          <span class="field__hint" id="name-hint">Nama bebas, hanya dipakai di panel ini.</span>
+        </div>
+        <div class="field">
+          <label class="field__label" for="note">Catatan</label>
+          <input type="text" id="note" name="note" maxlength="255">
+        </div>
+      </div>
+      <button class="btn btn--primary" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+        Buat grup
+      </button>
+    </form>
+  </div>
+</section>
+
+<%- include('/partials/foot') %>

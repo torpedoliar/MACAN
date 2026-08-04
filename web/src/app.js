@@ -112,6 +112,7 @@ app.post('/logout', requireAdmin, wrap(async (req, res) => {
 app.use('/', requireAdmin, require('./routes/dashboard'));
 app.use('/controllers', requireAdmin, require('./routes/controllers'));
 app.use('/ssids', requireAdmin, require('./routes/ssids'));
+app.use('/ssid-groups', requireAdmin, require('./routes/ssid-groups'));
 app.use('/rules', requireAdmin, require('./routes/rules'));
 app.use('/settings', requireAdmin, require('./routes/settings'));
 app.use('/logs', requireAdmin, require('./routes/logs'));

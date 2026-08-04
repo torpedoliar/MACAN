@@ -39,8 +39,12 @@ async function loadSettings() {
 }
 
 async function recordError(message) {
+  // Waktu lokal (WIB lewat TZ di compose.yaml), bukan toISOString(): string ini
+  // dibaca operator apa adanya di halaman Pengaturan, jadi harus sejam dengan
+  // kolom waktu lain di panel. 'sv-SE' satu-satunya locale bawaan yang memberi
+  // "YYYY-MM-DD HH:MM:SS".
   await query('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
-    ['notification_last_error', message ? `${new Date().toISOString()} ${message}` : '']);
+    ['notification_last_error', message ? `${new Date().toLocaleString('sv-SE')} ${message}` : '']);
 }
 
 // Returns false when this event_key was already sent inside the dedupe window.
@@ -80,6 +84,8 @@ async function notify(eventKey, text, settingsIn) {
   if (settings.notification_webhook_url) {
     if (!eventKey || await claim(eventKey, 'webhook', dedupe)) {
       try {
+        // `at` tetap ISO-8601 UTC: ini dikonsumsi mesin (n8n, Zapier, SIEM), dan
+        // offset eksplisit di dalamnya lebih aman daripada jam lokal tanpa zona.
         await post(settings.notification_webhook_url, { source: 'macan', text, at: new Date().toISOString() });
         sent.push('webhook');
       } catch (err) {

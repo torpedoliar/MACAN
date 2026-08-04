@@ -25,10 +25,28 @@
           <span class="field__hint" id="mac-hint">12 karakter hex. Pemisah <code class="mono">:</code>, <code class="mono">-</code>, <code class="mono">.</code>, atau tanpa pemisah — semua dinormalkan.</span>
         </div>
         <div class="field">
-          <label class="field__label" for="ssid_name">SSID<span class="field__req" aria-hidden="true">*</span></label>
-          <input type="text" id="ssid_name" name="ssid_name" required
-                 value="<%= rule.ssid_name || '' %>" maxlength="128" spellcheck="false">
+          <label class="field__label" for="ssid_name">SSID</label>
+          <input type="text" id="ssid_name" name="ssid_name"
+                 value="<%= rule.ssid_name || '' %>" maxlength="128" spellcheck="false"
+                 aria-describedby="ssid-hint">
+          <span class="field__hint" id="ssid-hint">Kosongkan kalau memakai grup SSID di bawah.</span>
         </div>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="ssid_group_id">Grup SSID</label>
+        <select id="ssid_group_id" name="ssid_group_id" aria-describedby="group-hint">
+          <option value="">— tidak pakai grup, pakai satu SSID di atas —</option>
+          <% groups.forEach(g => { %>
+          <option value="<%= g.id %>" <%= String(rule.ssid_group_id || '') === String(g.id) ? 'selected' : '' %>>
+            <%= g.name %> (<%= g.member_count %> SSID)
+          </option>
+          <% }) %>
+        </select>
+        <span class="field__hint" id="group-hint">
+          Kalau grup dipilih, kolom SSID diabaikan dan rule ini dipasang di setiap SSID anggota grup.
+          Kelola anggotanya di <a href="/ssid-groups">halaman Grup SSID</a>.
+        </span>
       </div>
 
       <div class="grid-2">

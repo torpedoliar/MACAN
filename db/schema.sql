@@ -30,6 +30,26 @@ CREATE TABLE ssids (
   CONSTRAINT fk_ssids_controller FOREIGN KEY (controller_id) REFERENCES controllers(id)
 );
 
+-- Sekumpulan SSID yang diperlakukan sama. Rule MAC yang menargetkan grup
+-- diperluas menjadi satu baris mac_rules per anggota, jadi FreeRADIUS tetap
+-- membaca satu baris per (MAC, SSID) dan default.conf tidak perlu tahu soal grup.
+CREATE TABLE ssid_groups (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(120) NOT NULL UNIQUE,
+  note TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Anggota disimpan sebagai nama SSID, bukan FK ke ssids.id: ssids bersifat per
+-- controller sementara rule bisa global, jadi nama adalah satu-satunya kunci
+-- yang dipakai mac_rules juga.
+CREATE TABLE ssid_group_members (
+  group_id BIGINT NOT NULL,
+  ssid_name VARCHAR(128) NOT NULL,
+  PRIMARY KEY (group_id, ssid_name),
+  CONSTRAINT fk_group_members_group FOREIGN KEY (group_id) REFERENCES ssid_groups(id) ON DELETE CASCADE
+);
+
 CREATE TABLE mac_rules (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   controller_id BIGINT NULL,
@@ -39,6 +59,10 @@ CREATE TABLE mac_rules (
   owner_name VARCHAR(160) NULL,
   device_name VARCHAR(160) NULL,
   note TEXT NULL,
+  -- Penanda asal: baris ini hasil perluasan grup SSID, bukan diisi satu per satu.
+  -- FreeRADIUS tidak pernah membacanya — gunanya hanya untuk memperluas ulang
+  -- ketika anggota grup berubah, dan untuk menampilkan asalnya di panel.
+  ssid_group_id BIGINT NULL,
   last_seen_at TIMESTAMP NULL,
   -- Stamped by cron when last_seen_at falls past inactive_after_days. A marker
   -- column, not a 4th status value: FreeRADIUS compares status to the literals
@@ -58,7 +82,11 @@ CREATE TABLE mac_rules (
   -- back to idx_rules_controller and scans every row belonging to the controller:
   -- measured 0.33ms vs 270ms at 500k rules.
   KEY idx_rules_mac_ssid (mac_address, ssid_name),
-  CONSTRAINT fk_rules_controller FOREIGN KEY (controller_id) REFERENCES controllers(id)
+  KEY idx_rules_group (ssid_group_id),
+  CONSTRAINT fk_rules_controller FOREIGN KEY (controller_id) REFERENCES controllers(id),
+  -- SET NULL, bukan CASCADE: menghapus grup tidak boleh ikut mencabut akses MAC
+  -- yang sudah berjalan. Barisnya tetap, hanya kehilangan jejak asalnya.
+  CONSTRAINT fk_rules_group FOREIGN KEY (ssid_group_id) REFERENCES ssid_groups(id) ON DELETE SET NULL
 );
 
 CREATE TABLE auth_logs (

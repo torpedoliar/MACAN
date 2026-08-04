@@ -85,6 +85,32 @@ async function migrate() {
   for (const [name, value] of Object.entries(defaults)) {
     await query('INSERT IGNORE INTO settings (name, value) VALUES (?, ?)', [name, value]);
   }
+
+  // 9. Grup SSID. Rule yang menargetkan grup tetap disimpan sebagai satu baris
+  //    mac_rules per anggota grup, jadi radius/default.conf tidak berubah sama
+  //    sekali: lookup-nya tetap satu SELECT per (mac_address, ssid_name) dan tetap
+  //    memakai idx_rules_mac_ssid. ssid_group_id hanya penanda asal — dipakai untuk
+  //    memperluas ulang saat anggota grup berubah dan untuk hapus massal.
+  await raw(`CREATE TABLE IF NOT EXISTS ssid_groups (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(120) NOT NULL UNIQUE,
+    note TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  // Anggota adalah nama SSID, bukan FK ke ssids.id: ssids per controller, rule
+  // bisa global, dan nama itulah yang dipakai mac_rules.
+  await raw(`CREATE TABLE IF NOT EXISTS ssid_group_members (
+    group_id BIGINT NOT NULL,
+    ssid_name VARCHAR(128) NOT NULL,
+    PRIMARY KEY (group_id, ssid_name),
+    CONSTRAINT fk_group_members_group FOREIGN KEY (group_id) REFERENCES ssid_groups(id) ON DELETE CASCADE
+  )`);
+  await raw('ALTER TABLE mac_rules ADD COLUMN IF NOT EXISTS ssid_group_id BIGINT NULL AFTER note');
+  await raw('ALTER TABLE mac_rules ADD KEY IF NOT EXISTS idx_rules_group (ssid_group_id)');
+  // SET NULL, bukan CASCADE: menghapus grup tidak boleh ikut mencabut akses MAC
+  // yang sudah berjalan. Barisnya tetap, hanya kehilangan jejak asalnya.
+  await raw(`ALTER TABLE mac_rules ADD CONSTRAINT IF NOT EXISTS fk_rules_group
+    FOREIGN KEY (ssid_group_id) REFERENCES ssid_groups(id) ON DELETE SET NULL`);
 }
 
 module.exports = { migrate };
