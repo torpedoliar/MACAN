@@ -46,6 +46,7 @@
           <option value="allow" <%= filters.status === 'allow' ? 'selected' : '' %>>Allow</option>
           <option value="deny" <%= filters.status === 'deny' ? 'selected' : '' %>>Deny</option>
           <option value="disabled" <%= filters.status === 'disabled' ? 'selected' : '' %>>Nonaktif</option>
+          <option value="inactive" <%= filters.status === 'inactive' ? 'selected' : '' %>>Inactive (lewat batas hari)</option>
         </select>
       </div>
       <div class="field">
@@ -95,7 +96,12 @@
             <% if (r.controller_id) { %><%= r.controller_name || ('#' + r.controller_id) %><% } else { %>
             <span class="badge badge--accent">Global</span><% } %>
           </td>
-          <td data-label="Status"><span class="badge badge--<%= r.status %>"><%= r.status %></span></td>
+          <td data-label="Status">
+            <span class="badge badge--<%= r.status %>"><%= r.status %></span>
+            <% if (r.inactive_since && r.status !== 'allow') { %>
+            <span class="badge badge--disabled" title="Tidak pernah terhubung sampai batas hari; diubah otomatis <%= fmt(r.inactive_since) %>">Inactive</span>
+            <% } %>
+          </td>
           <td data-label="Pemilik"><%= r.owner_name || '—' %></td>
           <td data-label="Perangkat"><%= r.device_name || '—' %></td>
           <td data-label="Terakhir terlihat" class="num"><%= fmt(r.last_seen_at) %></td>

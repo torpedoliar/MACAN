@@ -1,0 +1,71 @@
+<%- include('/partials/head', { title: account.id ? 'Edit Admin' : 'Tambah Admin' }) %>
+
+<section class="card" style="max-width:720px">
+  <div class="card__head">
+    <h2><%= account.id ? 'Edit admin' : 'Admin baru' %></h2>
+    <div class="btn-row"><a class="btn btn--sm" href="/admins">Kembali</a></div>
+  </div>
+  <div class="card__body">
+    <% if (error) { %>
+    <div class="alert alert--danger" role="alert">
+      <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+      <div><%= error %></div>
+    </div>
+    <% } %>
+
+    <form action="/admins/<%= account.id || '' %>" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="field">
+        <label class="field__label" for="email">Email<span class="field__req" aria-hidden="true">*</span></label>
+        <input type="email" id="email" name="email" required value="<%= account.email || '' %>"
+               maxlength="255" spellcheck="false" autocomplete="username"
+               placeholder="admin@perusahaan.co.id" aria-describedby="h-email">
+        <span class="field__hint" id="h-email">Dipakai sebagai username saat login. Harus unik.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="field__label" for="password">
+            Password<% if (!account.id) { %><span class="field__req" aria-hidden="true">*</span><% } %>
+          </label>
+          <input type="password" id="password" name="password" autocomplete="new-password"
+                 <%= account.id ? '' : 'required' %> minlength="8" maxlength="255"
+                 aria-describedby="h-password"
+                 placeholder="<%= account.id ? 'Kosongkan bila tidak diganti' : 'Minimal 8 karakter' %>">
+          <span class="field__hint" id="h-password">
+            Minimal 8 karakter.
+            <% if (account.id) { %>Kosongkan untuk mempertahankan password yang sekarang — nilainya tidak pernah ditampilkan ulang.<% } %>
+          </span>
+        </div>
+        <div class="field">
+          <label class="field__label" for="password_confirm">Ulangi password</label>
+          <input type="password" id="password_confirm" name="password_confirm"
+                 autocomplete="new-password" minlength="8" maxlength="255"
+                 placeholder="Ketik ulang password">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="check" for="enabled">
+          <input type="checkbox" id="enabled" name="enabled" value="1"
+                 <%= account.enabled === undefined || account.enabled ? 'checked' : '' %>>
+          <span>Aktif — akun ini boleh login</span>
+        </label>
+        <span class="field__hint">Hilangkan tanda ini untuk mencabut akses tanpa menghapus jejak
+          audit. Anda tidak bisa menonaktifkan akun sendiri, dan admin aktif terakhir tidak bisa
+          dinonaktifkan.</span>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn--primary" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+          Simpan
+        </button>
+        <a class="btn" href="/admins">Batal</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+<%- include('/partials/foot') %>

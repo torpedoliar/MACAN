@@ -215,10 +215,11 @@ router.post('/restore/confirm', wrap(async (req, res) => {
       }
       for (const r of parsed.data.mac_rules) {
         await conn.execute(
-          `INSERT INTO mac_rules (id, controller_id, ssid_name, mac_address, status, owner_name, device_name, note, last_seen_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO mac_rules (id, controller_id, ssid_name, mac_address, status, owner_name, device_name, note, last_seen_at, inactive_since)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [r.id, r.controller_id ?? null, r.ssid_name, normalizeMac(r.mac_address), String(r.status),
-           r.owner_name ?? null, r.device_name ?? null, r.note ?? null, r.last_seen_at ?? null]
+           r.owner_name ?? null, r.device_name ?? null, r.note ?? null, r.last_seen_at ?? null,
+           r.inactive_since ?? null]
         );
       }
       for (const s of parsed.data.settings) {

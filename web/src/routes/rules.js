@@ -40,7 +40,10 @@ router.get('/', wrap(async (req, res) => {
       params.push(like, like, like, like);
     }
   }
-  if (status && STATUSES.includes(status)) {
+  if (status === 'inactive') {
+    // Not a status value — a marker column. See migrate.js step 5.
+    where.push('r.inactive_since IS NOT NULL');
+  } else if (status && STATUSES.includes(status)) {
     where.push('r.status = ?');
     params.push(status);
   }
@@ -196,8 +199,11 @@ async function saveRule(req, res, id) {
 
   try {
     if (id) {
+      // inactive_since cleared on an admin edit: re-allowing a rule the cron
+      // denied must reset the marker, or the badge would outlive the fix. The
+      // clock itself resets via updated_at, which the sweep reads.
       await query(`UPDATE mac_rules SET controller_id=?, ssid_name=?, mac_address=?, status=?,
-        owner_name=?, device_name=?, note=? WHERE id=?`, [...values, id]);
+        owner_name=?, device_name=?, note=?, inactive_since=NULL WHERE id=?`, [...values, id]);
       await writeAudit(req.session.admin.id, 'rule_update', { id, mac, status });
     } else {
       await query(`INSERT INTO mac_rules (controller_id, ssid_name, mac_address, status, owner_name, device_name, note)

@@ -82,7 +82,10 @@ app.post('/login', wrap(async (req, res) => {
       error: `Terlalu banyak percobaan gagal. Coba lagi dalam ${locked} menit.`
     });
   }
-  const rows = await query('SELECT * FROM admins WHERE email = ?', [req.body.email || '']);
+  // enabled = 1 in the WHERE, not a branch after: a disabled account must give
+  // the same "email atau password salah" as a nonexistent one, and must not
+  // reveal itself by taking bcrypt-compare time.
+  const rows = await query('SELECT * FROM admins WHERE email = ? AND enabled = 1', [req.body.email || '']);
   const admin = rows[0];
   if (!admin || !(await bcrypt.compare(req.body.password || '', admin.password_hash))) {
     loginFailed(req);
@@ -116,6 +119,7 @@ app.use('/approvals', requireAdmin, require('./routes/approvals'));
 app.use('/sessions', requireAdmin, require('./routes/sessions'));
 app.use('/audit', requireAdmin, require('./routes/audit'));
 app.use('/data', requireAdmin, require('./routes/data'));
+app.use('/admins', requireAdmin, require('./routes/admins'));
 
 app.use((req, res) => res.status(404).render('error', {
   status: 404,

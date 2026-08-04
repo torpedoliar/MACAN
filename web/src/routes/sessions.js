@@ -10,9 +10,22 @@ router.get('/', wrap(async (req, res) => {
 
   const sessions = await query(`
     SELECT s.*, c.name AS controller_name,
+           r.owner_name, r.device_name, r.status AS rule_status,
            TIMESTAMPDIFF(SECOND, s.started_at, IFNULL(s.stopped_at, NOW())) AS duration_seconds,
            (s.stopped_at IS NULL AND s.last_update_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)) AS is_online
-    FROM sessions s LEFT JOIN controllers c ON s.controller_id = c.id
+    FROM sessions s
+    LEFT JOIN controllers c ON s.controller_id = c.id
+    -- Who is on the network: identity lives in mac_rules, not in the accounting
+    -- packet. Joined via a sub-select, not ON (r.controller_id = s.controller_id
+    -- OR r.controller_id IS NULL): a MAC with both a scoped and a global rule
+    -- would match twice and duplicate the session row. Same precedence as
+    -- default.conf — controller-scoped wins over global.
+    LEFT JOIN mac_rules r ON r.id = (
+      SELECT r2.id FROM mac_rules r2
+      WHERE r2.mac_address = s.mac_address AND r2.ssid_name = s.ssid_name
+        AND (r2.controller_id = s.controller_id OR r2.controller_id IS NULL)
+      ORDER BY r2.controller_id IS NULL ASC, r2.id ASC LIMIT 1
+    )
     ${show === 'online' ? 'WHERE s.stopped_at IS NULL AND s.last_update_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)' : ''}
     ORDER BY s.last_update_at DESC
     LIMIT 500

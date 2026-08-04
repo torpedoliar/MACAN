@@ -56,6 +56,7 @@ diklik ke halaman berfilter, dan grafik accept/reject 24 jam.
 │  ▸ Audit Log     │                                                          │
 │                  │                                                          │
 │  SISTEM          │                                                          │
+│  ▸ Admin         │                                                          │
 │  ▸ Pengaturan    │                                                          │
 │  ▸ Backup        │                                                          │
 └──────────────────┴──────────────────────────────────────────────────────────┘
@@ -256,9 +257,28 @@ dengan status nonaktif. Operator harus mengaktifkannya secara sadar.
 **Controller** — daftar NAS beserta shared secret. Menolak IP duplikat, dan
 menolak penghapusan controller yang masih dipakai SSID, rule, atau log.
 
-**Sesi Online** — dibangun dari paket accounting. `Accounting-On`/`Off` dari
-controller yang reboot menutup semua sesinya. Sesi tanpa update melebihi batas
-waktu ditandai selesai oleh cron.
+**Sesi Online** — dibangun dari paket accounting, lengkap dengan *siapa* yang
+terhubung: nama pemilik dan nama perangkat diambil dari rule MAC yang cocok
+(scope controller menang atas global, urutan yang sama dengan `default.conf`).
+Sesi tanpa rule ditandai `tanpa rule`. `Accounting-On`/`Off` dari controller yang
+reboot menutup semua sesinya. Sesi tanpa update melebihi batas waktu ditandai
+selesai oleh cron.
+
+**Audit inaktif** — rule `allow` yang tidak pernah tersambung selama
+`inactive_after_days` (default 90, bisa diubah di Pengaturan) diubah otomatis
+jadi `deny` dan ditandai **Inactive**. Penanda ini kolom terpisah
+(`inactive_since`), bukan nilai status ke-4: FreeRADIUS hanya mengenal
+`allow`/`deny`/`disabled`, dan nilai lain akan dibaca sebagai "rule tidak
+ditemukan" sehingga MAC-nya muncul lagi di Approval seolah belum pernah
+didaftarkan. Sweep memakai dua jam sekaligus — waktu koneksi terakhir *dan*
+waktu edit admin terakhir — supaya rule yang baru di-allow ulang tidak dibalik
+lagi pada tick berikutnya. Filter `Inactive` tersedia di halaman MAC Rules.
+
+**Admin** — akun per orang, masing-masing login sendiri. Akun tidak bisa dihapus
+(jejak Audit Log merujuk padanya); pencabutan akses dilakukan dengan mematikan
+tanda **Aktif**, yang langsung memblokir login tapi menyisakan riwayatnya. Ada
+pengaman: tidak bisa menonaktifkan akun sendiri, dan tidak bisa menonaktifkan
+admin aktif terakhir.
 
 **Auth Log** — accept dan reject dengan alasan, bisa difilter, plus atribut
 mentah paket dalam JSON untuk penelusuran.
@@ -283,7 +303,8 @@ menolak perubahan data dengan HTTP 503. Sesi yang sudah berjalan tidak
 terpengaruh karena tidak melakukan re-auth.
 
 **Pembersihan otomatis** — cron tiap jam (menit ke-7) memangkas log melewati
-masa simpan, menutup sesi basi, dan mengirim notifikasi yang tertunda.
+masa simpan, menutup sesi basi, menjalankan sweep inaktif, dan mengirim
+notifikasi yang tertunda.
 
 ---
 
@@ -326,8 +347,8 @@ web/
     db.js  auth.js  audit.js  notifications.js  cron.js
     pending.js            definisi "menunggu approval"
     radius-policy.js      normalisasi MAC, dipakai bersama route
-    routes/               10 route
-    views/                18 template EJS
+    routes/               11 route
+    views/                20 template EJS
   test/self-check.js      compile + render semua view, isi maupun kosong
 ```
 

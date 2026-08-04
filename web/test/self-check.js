@@ -50,6 +50,32 @@ assert.ok(!isControllerIp('192.168.1'), 'IP tidak lengkap diterima');
 assert.ok(!isControllerIp('192.168.1.0/24/8'));
 assert.ok(!isControllerIp(''));
 
+// Inactivity sweep, checked statically because it is pure SQL. Two invariants
+// that are silent when broken and expensive when they bite:
+//  1. `inactive` must never be a status value — default.conf compares
+//     Tmp-String-2 to the literals allow/deny/disabled, so a 4th value falls
+//     into its else branch and the MAC reappears in Approvals as unregistered.
+//  2. The sweep needs BOTH clocks. With only last_seen_at, an admin re-allowing
+//     a swept rule gets it flipped back to deny on the next hourly tick,
+//     because last_seen_at is still months old.
+const cronSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cron.js'), 'utf8');
+const rulesSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'rules.js'), 'utf8');
+assert.ok(!/STATUSES\s*=\s*\[[^\]]*'inactive'/.test(rulesSrc),
+  "rules.js: 'inactive' masuk STATUSES — default.conf hanya kenal allow/deny/disabled");
+assert.ok(/inactive_since\s*=\s*NULL/.test(rulesSrc),
+  'rules.js: edit rule tidak menghapus inactive_since — badge Inactive akan tetap muncul setelah di-allow ulang');
+assert.ok(/IFNULL\(last_seen_at, updated_at\)/.test(cronSrc) && /AND updated_at < DATE_SUB/.test(cronSrc),
+  'cron.js: sweep hanya pakai satu jam — edit admin akan dibatalkan lagi pada tick berikutnya');
+assert.ok(/inactive_since IS NULL/.test(cronSrc),
+  'cron.js: sweep tidak idempoten — rule yang sudah ditandai akan diproses ulang');
+
+// A disabled admin must be filtered in SQL, not by a branch after the bcrypt
+// compare: the "enabled" check has to be part of the lookup so a revoked account
+// is indistinguishable from a nonexistent one, in both message and timing.
+const appSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
+assert.ok(/FROM admins WHERE email = \? AND enabled = 1/.test(appSrc),
+  'app.js: login tidak memfilter enabled — admin yang dinonaktifkan masih bisa masuk');
+
 // Login brake. Two buckets, so an attacker rotating X-Forwarded-For must still
 // trip the email bucket — that is the whole point of the second key and the part
 // that would silently rot if someone "simplified" loginKeys back to one.
@@ -115,7 +141,8 @@ for (const file of files) {
 const MAXLEN = {
   'controllers/form': { name: 120, ip_address: 45, shared_secret: 255, note: 65535 },
   'rules/form': { mac_address: 17, ssid_name: 128, owner_name: 160, device_name: 160 },
-  'ssids/index': { ssid_name: 128 }
+  'ssids/index': { ssid_name: 128 },
+  'admins/form': { email: 255, password: 255 }
 };
 for (const [view, fields] of Object.entries(MAXLEN)) {
   // Strip EJS tags first: a `value="<%= x %>"` attribute contains a ">" that ends
@@ -226,9 +253,22 @@ const CASES = {
   'sessions/index': {
     sessions: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_name: 'C',
                  session_id: 'sid', started_at: now, last_update_at: now, stopped_at: null,
-                 duration_seconds: 4000, is_online: 1 }],
+                 duration_seconds: 4000, is_online: 1,
+                 owner_name: 'Budi', device_name: 'Laptop', rule_status: 'allow' },
+               // Session with no matching rule: the identity join returns NULLs and
+               // the view must fall back instead of printing "null".
+               { mac_address: 'aa:bb:cc:dd:ee:00', ssid_name: 'S', controller_name: null,
+                 session_id: 'sid2', started_at: now, last_update_at: now, stopped_at: now,
+                 duration_seconds: 10, is_online: 0,
+                 owner_name: null, device_name: null, rule_status: null }],
     timeout: 120, show: 'all'
   },
+  'admins/index': {
+    accounts: [{ id: 1, email: 'a@b.c', enabled: 1, created_at: now, last_login: now },
+               { id: 2, email: 'z@b.c', enabled: 0, created_at: now, last_login: null }],
+    error: 'e', notice: 'n'
+  },
+  'admins/form': { account: { id: 2, email: 'z@b.c', enabled: 0 }, error: 'e' },
   'audit/index': {
     logs: [{ created_at: now, admin_email: 'a@b.c', ip_address: '10.0.0.5', action: 'login', details: { a: 1 } },
            { created_at: now, admin_email: null, ip_address: null, action: 'x', details: 'str' }],

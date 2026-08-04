@@ -47,10 +47,23 @@ async function migrate() {
   //    captured, and inventing it would be worse than admitting the gap.
   await raw('ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45) NULL AFTER action');
 
-  // 5. Settings added after first boot.
+  // 5. Inactivity audit: a MAC unseen for N days is flipped to deny and stamped
+  //    here. Deliberately NOT a 4th `status` ENUM value — default.conf compares
+  //    Tmp-String-2 against the literals allow/deny/disabled, so a fifth value
+  //    falls into its else branch, gets logged as "rule tidak ditemukan", and the
+  //    MAC reappears in Approvals as if it had never been registered.
+  await raw('ALTER TABLE mac_rules ADD COLUMN IF NOT EXISTS inactive_since TIMESTAMP NULL AFTER last_seen_at');
+  await raw('ALTER TABLE mac_rules ADD KEY IF NOT EXISTS idx_rules_last_seen (last_seen_at)');
+
+  // 6. Per-admin accounts. Revoking access is a flag, not a DELETE:
+  //    audit_logs.fk_audit_admin refuses to drop an admin that has history.
+  await raw('ALTER TABLE admins ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE AFTER password_hash');
+
+  // 7. Settings added after first boot.
   const defaults = {
     auth_log_retention_days: '90',
     online_session_timeout_minutes: '120',
+    inactive_after_days: '90',
     reject_spike_count: '5',
     reject_spike_window_minutes: '10',
     notification_webhook_url: '',

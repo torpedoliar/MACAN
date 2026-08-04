@@ -42,7 +42,7 @@
   <div class="table-wrap">
     <table class="data stackable">
       <thead>
-        <tr><th>Status</th><th>MAC</th><th>SSID</th><th>Controller</th><th>Session ID</th><th>Mulai</th><th>Update terakhir</th><th class="num">Durasi</th></tr>
+        <tr><th>Status</th><th>Pengguna</th><th>MAC</th><th>SSID</th><th>Controller</th><th>Session ID</th><th>Mulai</th><th>Update terakhir</th><th class="num">Durasi</th></tr>
       </thead>
       <tbody>
         <% sessions.forEach(s => { %>
@@ -54,6 +54,14 @@
             <span class="badge">selesai</span>
             <% } else { %>
             <span class="badge badge--disabled">basi</span>
+            <% } %>
+          </td>
+          <td data-label="Pengguna">
+            <% if (s.owner_name || s.device_name) { %>
+            <strong><%= s.owner_name || '—' %></strong>
+            <% if (s.device_name) { %><span class="card__hint"><%= s.device_name %></span><% } %>
+            <% } else { %>
+            <span class="badge badge--disabled">tanpa rule</span>
             <% } %>
           </td>
           <td data-label="MAC" class="mono"><%= s.mac_address %></td>

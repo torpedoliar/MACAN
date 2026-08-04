@@ -1,18 +1,55 @@
 const cron = require('node-cron');
 const { query } = require('./db');
+const { writeAudit } = require('./audit');
 const { notify, loadSettings } = require('./notifications');
 const { pendingCount } = require('./pending');
+
+// A rule nobody has connected with for `inactive_after_days` is stale access:
+// flip it to deny and stamp inactive_since so the page can say why. Only allow
+// rules are touched — a deny stays deny.
+//
+// Two clocks, both must be past the threshold:
+//   last_seen_at — when the device last authenticated (NULL = never; fall back to
+//                  updated_at so a rule registered today isn't denied tomorrow).
+//   updated_at   — when an admin last touched the row. Without this, re-allowing a
+//                  rule the sweep denied would be undone on the next tick, because
+//                  its last_seen_at is still months old. The admin's edit IS the
+//                  activity signal.
+const INACTIVE_WHERE = `
+  WHERE status = 'allow' AND inactive_since IS NULL
+    AND IFNULL(last_seen_at, updated_at) < DATE_SUB(NOW(), INTERVAL ? DAY)
+    AND updated_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+`;
+
+async function sweepInactive(days) {
+  const stale = await query(`SELECT id, mac_address, ssid_name FROM mac_rules ${INACTIVE_WHERE}`, [days, days]);
+  if (!stale.length) return 0;
+  await query(`UPDATE mac_rules SET status = 'deny', inactive_since = NOW() ${INACTIVE_WHERE}`, [days, days]);
+  // admin_id NULL: cron acted, not a person. The trail matters more than the actor.
+  await writeAudit(null, 'rule_auto_inactive', {
+    days,
+    count: stale.length,
+    macs: stale.slice(0, 50).map(r => `${r.mac_address}@${r.ssid_name}`)
+  });
+  return stale.length;
+}
 
 async function runCron() {
   const settings = await loadSettings();
   const retention = parseInt(settings.auth_log_retention_days, 10) || 90;
   const timeout = parseInt(settings.online_session_timeout_minutes, 10) || 120;
+  const inactiveDays = parseInt(settings.inactive_after_days, 10) || 90;
 
   await query('DELETE FROM auth_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)', [retention]);
   await query('DELETE FROM accounting_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)', [retention]);
   // Sessions with no accounting update inside the timeout are stale, not online.
   await query('UPDATE sessions SET stopped_at = last_update_at WHERE stopped_at IS NULL AND last_update_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)', [timeout]);
   await query('DELETE FROM notification_log WHERE sent_at < DATE_SUB(NOW(), INTERVAL 30 DAY)');
+
+  const flipped = await sweepInactive(inactiveDays);
+  if (flipped > 0) {
+    await notify('rule_inactive', `MACan: ${flipped} MAC tidak terhubung lebih dari ${inactiveDays} hari, status diubah jadi deny (Inactive).`, settings);
+  }
 
   const window = parseInt(settings.reject_spike_window_minutes, 10) || 10;
   const threshold = parseInt(settings.reject_spike_count, 10) || 5;
@@ -55,4 +92,4 @@ cron.schedule('7 * * * *', () => {
 
 runCron().catch(err => console.error('cron gagal:', err.message));
 
-module.exports = { runCron };
+module.exports = { runCron, sweepInactive };

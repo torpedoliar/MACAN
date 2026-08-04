@@ -10,6 +10,7 @@ const router = express.Router();
 const NUMERIC = {
   auth_log_retention_days: { min: 1, max: 3650 },
   online_session_timeout_minutes: { min: 1, max: 10080 },
+  inactive_after_days: { min: 1, max: 3650 },
   reject_spike_count: { min: 1, max: 10000 },
   reject_spike_window_minutes: { min: 1, max: 1440 },
   notification_dedupe_minutes: { min: 0, max: 10080 }

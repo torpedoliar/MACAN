@@ -69,6 +69,16 @@
           <span class="field__hint" id="h-timeout">1–10080. Sesi tanpa paket Stop dianggap basi kalau
             Interim-Update terakhirnya lebih lama dari ini.</span>
         </div>
+        <div class="field">
+          <label class="field__label" for="inactive_after_days">Nonaktifkan MAC setelah (hari)</label>
+          <input type="number" id="inactive_after_days" name="inactive_after_days"
+                 inputmode="numeric" min="1" max="3650" required
+                 value="<%= v('inactive_after_days', '90') %>" aria-describedby="h-inactive">
+          <span class="field__hint" id="h-inactive">1–3650. Rule <strong>allow</strong> yang tidak
+            pernah tersambung selama ini diubah otomatis jadi <strong>deny</strong> dan ditandai
+            <strong>Inactive</strong> oleh cron. Rule yang sudah pernah ditandai tidak diubah lagi —
+            aktifkan kembali secara manual di <a href="/rules">MAC Rules</a>.</span>
+        </div>
       </div>
     </div>
   </section>

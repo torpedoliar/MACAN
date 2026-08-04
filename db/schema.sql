@@ -2,6 +2,9 @@ CREATE TABLE admins (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  -- Disabling beats deleting: audit_logs.fk_audit_admin blocks removing an
+  -- account that has history, so revoking access has to be a flag.
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -37,6 +40,10 @@ CREATE TABLE mac_rules (
   device_name VARCHAR(160) NULL,
   note TEXT NULL,
   last_seen_at TIMESTAMP NULL,
+  -- Stamped by cron when last_seen_at falls past inactive_after_days. A marker
+  -- column, not a 4th status value: FreeRADIUS compares status to the literals
+  -- allow/deny/disabled and treats anything else as "no rule found".
+  inactive_since TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   -- NULL controller_id would make UNIQUE non-enforcing (NULLs compare distinct),
@@ -44,6 +51,7 @@ CREATE TABLE mac_rules (
   scope_key BIGINT AS (IFNULL(controller_id, 0)) STORED,
   UNIQUE KEY uniq_rule_scope_key (scope_key, ssid_name, mac_address),
   KEY idx_rules_controller (controller_id),
+  KEY idx_rules_last_seen (last_seen_at),
   CONSTRAINT fk_rules_controller FOREIGN KEY (controller_id) REFERENCES controllers(id)
 );
 
@@ -122,6 +130,7 @@ CREATE TABLE notification_log (
 INSERT INTO settings (name, value) VALUES
 ('auth_log_retention_days', '90'),
 ('online_session_timeout_minutes', '120'),
+('inactive_after_days', '90'),
 ('reject_spike_count', '5'),
 ('reject_spike_window_minutes', '10'),
 ('notification_webhook_url', ''),
