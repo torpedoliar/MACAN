@@ -2,7 +2,7 @@ const express = require('express');
 const { query } = require('../db');
 const { writeAudit } = require('../audit');
 const { wrap } = require('../middleware');
-const { isHostIp } = require('../radius-policy');
+const { isControllerIp } = require('../radius-policy');
 const router = express.Router();
 
 const clean = v => {
@@ -37,7 +37,7 @@ async function save(req, res, id) {
     controller: { id, name, ip_address: ip, enabled, note }, error
   });
   if (!name) return rerender('Nama controller wajib diisi.');
-  if (!ip || !isHostIp(ip)) return rerender('IP address tidak valid. Harus satu host IPv4, contoh: 192.168.1.10 (subnet/CIDR tidak didukung).');
+  if (!ip || !isControllerIp(ip)) return rerender('IP address tidak valid. Isi satu host (192.168.1.10) atau satu subnet (192.168.1.0/24, prefix /8 sampai /32).');
   if (!id && !secret) return rerender('Shared secret wajib diisi saat membuat controller baru.');
   if (secret && secret.length < 8) return rerender('Shared secret minimal 8 karakter.');
 

@@ -169,8 +169,22 @@ docker exec -i $(docker compose ps --format '{{.Name}}' db) \
 ## Menyambungkan UniFi
 
 **1. Tambahkan controller di MACan.** Menu **Controller → Tambah**. Isi nama,
-IP address controller (IP yang dipakai UniFi untuk mengirim paket RADIUS), dan
-shared secret.
+IP sumber paket RADIUS, dan shared secret.
+
+Yang mengirim paket RADIUS belum tentu controller-nya. Pada UniFi, AP biasanya
+menghubungi RADIUS **langsung**, jadi IP sumbernya adalah IP AP — bukan IP
+controller. Karena itu kolom IP menerima dua bentuk:
+
+| Isi | Kapan dipakai |
+|---|---|
+| `10.10.0.100` | satu host saja yang mengirim (mis. controller relay RADIUS) |
+| `10.10.0.0/24` | seluruh AP di satu subnet mengirim langsung |
+
+Baris host menang atas baris subnet yang memuatnya, jadi satu AP bisa diberi
+entri sendiri tanpa mengganggu entri subnet. Prefix `/8`–`/32`; shared secret
+berlaku untuk seluruh subnet yang didaftarkan, jadi pilih subnet sesempit
+mungkin. Setelah menambah/mengubah, jalankan `docker compose restart radius` —
+daftar client dibaca FreeRADIUS hanya saat start.
 
 **2. Buat RADIUS profile di UniFi.** *Settings → Profiles → RADIUS → Create New*:
 

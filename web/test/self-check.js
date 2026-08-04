@@ -2,7 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
-const { normalizeMac, parseSsid, chooseRule, isHostIp } = require('../src/radius-policy');
+const { normalizeMac, parseSsid, chooseRule, isControllerIp } = require('../src/radius-policy');
 const { loginLockedFor, loginFailed, loginSucceeded, MAX_FAILS } = require('../src/middleware');
 
 assert.equal(normalizeMac('AA-BB-CC-DD-EE-FF'), 'aa:bb:cc:dd:ee:ff');
@@ -24,14 +24,31 @@ assert.ok(!/Tmp-Integer-0\}"\s*==\s*""/.test(policy),
 assert.ok(/"%\{control:Tmp-Integer-0\}"\s*==\s*"0"/.test(policy),
   'default.conf: cabang "controller tidak dikenal" hilang');
 
-// Controller IP: host only. A CIDR row can never equal Packet-Src-IP-Address, so
-// accepting one would silently reject every packet from that subnet.
-assert.ok(isHostIp('192.168.1.10'));
-assert.ok(isHostIp('10.0.0.1'));
-assert.ok(!isHostIp('192.168.1.0/24'), 'CIDR diterima — tidak akan pernah cocok di policy');
-assert.ok(!isHostIp('999.1.1.1'), 'oktet di luar 0-255 diterima');
-assert.ok(!isHostIp('192.168.1'), 'IP tidak lengkap diterima');
-assert.ok(!isHostIp(''));
+// Controller source address: host or subnet. A UniFi AP sends the RADIUS packet
+// itself, so the source IP is the AP's — a subnet row is what covers a fleet.
+// default.conf must therefore carry the containment arm in BOTH sections; without
+// it a /24 row can never match and every AP is dropped as "controller tidak
+// dikenal", which is exactly the bug this replaced.
+const subnetMatch = policy.match(/INSTR\(ip_address, '\/'\) > 0 AND INET_ATON/g) || [];
+assert.equal(subnetMatch.length, 2,
+  `default.conf: cabang pencocokan subnet ada ${subnetMatch.length}x, harus 2 (authorize + accounting)`);
+// Host rows must still win over a subnet containing them, else a per-AP override
+// silently loses to the fleet-wide row.
+assert.equal((policy.match(/ORDER BY INSTR\(ip_address, '\/'\) ASC/g) || []).length, 2,
+  'default.conf: urutan host-dulu-baru-subnet hilang');
+
+assert.ok(isControllerIp('192.168.1.10'));
+assert.ok(isControllerIp('10.0.0.1'));
+assert.ok(isControllerIp('10.10.0.0/24'), 'subnet /24 ditolak — AP tidak akan bisa didaftarkan');
+assert.ok(isControllerIp('10.0.0.0/8'));
+assert.ok(isControllerIp('192.168.1.10/32'));
+assert.ok(!isControllerIp('10.0.0.0/0'), 'prefix /0 diterima — secret berlaku untuk semua IP');
+assert.ok(!isControllerIp('10.0.0.0/7'), 'prefix lebih lebar dari /8 diterima');
+assert.ok(!isControllerIp('10.0.0.0/33'), 'prefix di luar 0-32 diterima');
+assert.ok(!isControllerIp('999.1.1.1'), 'oktet di luar 0-255 diterima');
+assert.ok(!isControllerIp('192.168.1'), 'IP tidak lengkap diterima');
+assert.ok(!isControllerIp('192.168.1.0/24/8'));
+assert.ok(!isControllerIp(''));
 
 // Login brake. Two buckets, so an attacker rotating X-Forwarded-For must still
 // trip the email bucket — that is the whole point of the second key and the part
