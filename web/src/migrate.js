@@ -109,8 +109,10 @@ async function migrate() {
   await raw('ALTER TABLE mac_rules ADD KEY IF NOT EXISTS idx_rules_group (ssid_group_id)');
   // SET NULL, bukan CASCADE: menghapus grup tidak boleh ikut mencabut akses MAC
   // yang sudah berjalan. Barisnya tetap, hanya kehilangan jejak asalnya.
-  await raw(`ALTER TABLE mac_rules ADD CONSTRAINT IF NOT EXISTS fk_rules_group
-    FOREIGN KEY (ssid_group_id) REFERENCES ssid_groups(id) ON DELETE SET NULL`);
+  // IF NOT EXISTS menempel pada FOREIGN KEY, bukan pada ADD CONSTRAINT — MariaDB
+  // menolak "ADD CONSTRAINT IF NOT EXISTS nama" dengan ER_PARSE_ERROR.
+  await raw(`ALTER TABLE mac_rules ADD CONSTRAINT fk_rules_group
+    FOREIGN KEY IF NOT EXISTS (ssid_group_id) REFERENCES ssid_groups(id) ON DELETE SET NULL`);
 }
 
 module.exports = { migrate };
