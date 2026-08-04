@@ -1,0 +1,131 @@
+<%- include('/partials/head', { title: 'Backup & Restore' }) %>
+
+<% const label = { controllers: 'Controller', ssids: 'SSID', mac_rules: 'Rule MAC', settings: 'Pengaturan' }; %>
+
+<% if (error) { %>
+<div class="alert alert--danger" role="alert">
+  <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+  <div><%= error %></div>
+</div>
+<% } %>
+<% if (notice) { %>
+<div class="alert alert--success" role="status">
+  <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+  <div><%= notice %></div>
+</div>
+<% } %>
+
+<section class="card">
+  <div class="card__head"><h2>Backup</h2></div>
+  <div class="card__body">
+    <p class="card__hint" style="margin-bottom:var(--s4)">
+      Berkas JSON berisi seluruh konfigurasi: controller (termasuk shared secret), SSID, rule MAC,
+      dan pengaturan. Auth log, audit log, dan sesi <strong>tidak</strong> ikut — itu data operasional.
+      Simpan berkas ini di tempat aman karena isinya rahasia.
+    </p>
+    <div class="table-wrap">
+      <table class="data stackable">
+        <thead><tr><th>Tabel</th><th class="num">Baris saat ini</th></tr></thead>
+        <tbody>
+          <% Object.entries(counts).forEach(([t, n]) => { %>
+          <tr>
+            <td data-label="Tabel"><%= label[t] || t %></td>
+            <td data-label="Baris saat ini" class="num"><%= n %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card__body" style="padding-top:0">
+    <a class="btn btn--primary" href="/data/backup">
+      <svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>
+      Unduh backup JSON
+    </a>
+  </div>
+</section>
+<section class="card">
+  <div class="card__head"><h2>Restore</h2></div>
+  <div class="card__body">
+    <div class="alert alert--warning" role="note" style="margin:0 0 var(--s4)">
+      <svg class="icon" aria-hidden="true"><use href="#i-warning"></use></svg>
+      <div>
+        <strong>Restore mengganti seluruh konfigurasi.</strong>
+        Semua controller, SSID, dan rule MAC yang ada sekarang dihapus, lalu diganti dengan isi
+        berkas backup. Prosesnya berjalan dalam satu transaksi, jadi tidak akan setengah jalan.
+        Sebelum data lama dihapus, sistem menyimpan snapshot otomatis ke direktori sementara
+        container web, dan nama berkasnya dicatat di <a href="/audit">Audit Log</a>.
+        <p style="margin:var(--s3) 0 0">Urutannya:</p>
+        <ol style="margin:var(--s2) 0 0;padding-left:var(--s5)">
+          <li>Unggah berkas backup. Berkas divalidasi dulu, belum ada data yang berubah.</li>
+          <li>Periksa ringkasan perbandingan jumlah baris yang muncul setelah unggah.</li>
+          <li>Ketik <code class="mono">GANTI</code> lalu tekan tombol konfirmasi. Baru pada langkah
+            ini data lama dihapus.</li>
+          <li>Jalankan <code class="mono">docker compose restart radius</code> agar FreeRADIUS
+            membaca ulang daftar controller.</li>
+        </ol>
+      </div>
+    </div>
+
+    <% if (!staged) { %>
+    <form action="/data/restore/preview" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="field">
+        <label class="field__label" for="backup">Berkas backup<span class="field__req" aria-hidden="true">*</span></label>
+        <input type="file" id="backup" name="backup" accept="application/json,.json" required
+               aria-describedby="backup-hint">
+        <span class="field__hint" id="backup-hint">Hanya berkas JSON hasil unduhan dari halaman ini.
+          Maksimal 8 MB.</span>
+      </div>
+      <button class="btn" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>
+        Unggah &amp; periksa
+      </button>
+    </form>
+    <% } else { %>
+    <p class="card__hint">Backup dibuat <span class="num"><%= staged.generated_at %></span>.
+      Belum ada data yang berubah.</p>
+    <div class="table-wrap" style="margin:var(--s4) 0">
+      <table class="data stackable">
+        <thead><tr><th>Tabel</th><th class="num">Sekarang</th><th class="num">Setelah restore</th></tr></thead>
+        <tbody>
+          <% staged.rows.forEach(r => { %>
+          <tr>
+            <td data-label="Tabel"><%= label[r.table] || r.table %></td>
+            <td data-label="Sekarang" class="num"><%= r.current %></td>
+            <td data-label="Setelah restore" class="num"><strong><%= r.incoming %></strong></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <form action="/data/restore/confirm" method="POST"
+          data-confirm="Ganti seluruh konfigurasi dengan isi backup ini? Data lama dihapus.">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="field">
+        <label class="field__label" for="confirm">Ketik GANTI untuk mengonfirmasi<span class="field__req" aria-hidden="true">*</span></label>
+        <input type="text" id="confirm" name="confirm" required autocomplete="off"
+               spellcheck="false" autocapitalize="characters" placeholder="GANTI"
+               aria-describedby="confirm-hint">
+        <span class="field__hint" id="confirm-hint">Harus tepat kata <code class="mono">GANTI</code>.</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn--danger" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-warning"></use></svg>
+          Ganti data sekarang
+        </button>
+      </div>
+    </form>
+    <form action="/data/restore/cancel" method="POST" style="margin-top:var(--s3)">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn btn--sm" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+        Batalkan
+      </button>
+    </form>
+    <% } %>
+  </div>
+</section>
+
+<%- include('/partials/foot') %>
+

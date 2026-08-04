@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title><%= status %> · MACan</title>
+  <link rel="stylesheet" href="/app.css">
+  <script>
+    try {
+      var t = localStorage.getItem('macan-theme');
+      if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+<%- include('/partials/icons') %>
+<main class="auth">
+  <div class="auth__card">
+    <div class="card">
+      <div class="card__body empty">
+        <svg class="icon" aria-hidden="true"><use href="#<%= status >= 500 ? 'i-x-circle' : 'i-warning' %>"></use></svg>
+        <h3><%= status %> — <%= status === 404 ? 'Tidak ditemukan' : (status === 403 ? 'Ditolak' : (status === 503 ? 'Sementara tidak tersedia' : 'Kesalahan')) %></h3>
+        <p><%= message %></p>
+        <div class="btn-row" style="justify-content:center">
+          <a class="btn btn--primary" href="/">
+            <svg class="icon" aria-hidden="true"><use href="#i-dashboard"></use></svg>
+            Ke Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

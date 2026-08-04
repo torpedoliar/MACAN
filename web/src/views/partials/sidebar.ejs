@@ -1,0 +1,55 @@
+<%
+  const nav = [
+    { label: 'Ringkasan', items: [
+      { href: '/', icon: 'i-dashboard', text: 'Dashboard' }
+    ]},
+    { label: 'Akses', items: [
+      { href: '/rules', icon: 'i-shield', text: 'MAC Rules' },
+      { href: '/approvals', icon: 'i-inbox', text: 'Approval', count: typeof pendingCount !== 'undefined' ? pendingCount : 0 },
+      { href: '/ssids', icon: 'i-wifi', text: 'SSID' },
+      { href: '/controllers', icon: 'i-router', text: 'Controller' }
+    ]},
+    { label: 'Pemantauan', items: [
+      { href: '/sessions', icon: 'i-users', text: 'Sesi Online' },
+      { href: '/logs', icon: 'i-list', text: 'Auth Log' },
+      { href: '/audit', icon: 'i-history', text: 'Audit Log' }
+    ]},
+    { label: 'Sistem', items: [
+      { href: '/settings', icon: 'i-settings', text: 'Pengaturan' },
+      { href: '/data', icon: 'i-database', text: 'Backup & Restore' }
+    ]}
+  ];
+  const active = href => href === '/'
+    ? currentPath === '/'
+    : currentPath === href || currentPath.startsWith(href + '/');
+%>
+<aside class="sidebar" id="sidebar" aria-label="Navigasi utama">
+  <div class="sidebar__brand">
+    <span class="sidebar__mark" aria-hidden="true">MAC</span>
+    <span class="sidebar__name">MACan<span class="sidebar__sub">MAC Auth UniFi</span></span>
+  </div>
+  <nav class="sidebar__nav">
+    <% nav.forEach(group => { %>
+    <div class="nav__group">
+      <div class="nav__label"><%= group.label %></div>
+      <% group.items.forEach(item => { %>
+      <a class="nav__link" href="<%= item.href %>" <%= active(item.href) ? 'aria-current="page"' : '' %>>
+        <svg class="icon" aria-hidden="true"><use href="#<%= item.icon %>"></use></svg>
+        <span><%= item.text %></span>
+        <% if (item.count) { %><span class="nav__count" aria-label="<%= item.count %> menunggu"><%= item.count %></span><% } %>
+      </a>
+      <% }) %>
+    </div>
+    <% }) %>
+  </nav>
+  <div class="sidebar__foot">
+    <div class="sidebar__user"><%= admin ? admin.email : '' %></div>
+    <form action="/logout" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn btn--ghost" type="submit" style="width:100%;justify-content:flex-start">
+        <svg class="icon" aria-hidden="true"><use href="#i-logout"></use></svg>
+        Keluar
+      </button>
+    </form>
+  </div>
+</aside>

@@ -1,0 +1,91 @@
+<%- include('/partials/head', { title: 'Audit Log' }) %>
+
+<%
+  const fmt = d => new Date(d).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'medium' });
+  const qs = extra => {
+    const p = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => { if (v) p.set(k, v); });
+    Object.entries(extra).forEach(([k, v]) => p.set(k, v));
+    return '?' + p.toString();
+  };
+  const details = d => {
+    if (d === null || d === undefined) return '—';
+    try { return typeof d === 'string' ? d : JSON.stringify(d); } catch (e) { return '—'; }
+  };
+%>
+
+<section class="card">
+  <div class="card__head"><h2>Filter</h2></div>
+  <div class="card__body">
+    <form action="/audit" method="GET" class="filters">
+      <div class="field">
+        <label class="field__label" for="f-action">Tindakan</label>
+        <input type="search" id="f-action" name="action" value="<%= filters.action %>"
+               placeholder="rule_create, settings_update" spellcheck="false">
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-admin">Admin</label>
+        <select id="f-admin" name="admin_id">
+          <option value="">Semua</option>
+          <% admins.forEach(a => { %>
+          <option value="<%= a.id %>" <%= String(filters.admin_id) === String(a.id) ? 'selected' : '' %>><%= a.email %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="filters__actions">
+        <button class="btn btn--primary" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          Terapkan
+        </button>
+        <a class="btn" href="/audit">Reset</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card__head">
+    <h2>Riwayat tindakan admin</h2>
+    <p class="card__hint" style="margin-left:auto"><span class="num"><%= total %></span> baris cocok</p>
+  </div>
+
+  <% if (!logs.length) { %>
+    <div class="card__body empty">
+      <svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg>
+      <h3>Tidak ada catatan</h3>
+      <p>Setiap perubahan konfigurasi oleh admin dicatat di sini. Nilai rahasia seperti token
+        tidak pernah ikut dicatat — hanya nama field-nya.</p>
+    </div>
+  <% } else { %>
+  <div class="table-wrap">
+    <table class="data stackable">
+      <thead><tr><th>Waktu</th><th>Admin</th><th>Tindakan</th><th>Detail</th></tr></thead>
+      <tbody>
+        <% logs.forEach(l => { %>
+        <tr>
+          <td data-label="Waktu" class="num"><%= fmt(l.created_at) %></td>
+          <td data-label="Admin"><%= l.admin_email || 'sistem' %></td>
+          <td data-label="Tindakan"><span class="badge badge--accent"><%= l.action %></span></td>
+          <td data-label="Detail" class="mono"><%= details(l.details) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="card__body">
+    <div class="pager">
+      <span class="pager__info">Halaman <%= page %> dari <%= pages %></span>
+      <div class="btn-row">
+        <% if (page > 1) { %>
+        <a class="btn btn--sm" href="/audit<%= qs({ page: page - 1 }) %>">Sebelumnya</a>
+        <% } else { %><span class="btn btn--sm" aria-disabled="true">Sebelumnya</span><% } %>
+        <% if (page < pages) { %>
+        <a class="btn btn--sm" href="/audit<%= qs({ page: page + 1 }) %>">Berikutnya</a>
+        <% } else { %><span class="btn btn--sm" aria-disabled="true">Berikutnya</span><% } %>
+      </div>
+    </div>
+  </div>
+  <% } %>
+</section>
+
+<%- include('/partials/foot') %>

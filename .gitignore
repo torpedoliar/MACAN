@@ -1,0 +1,12 @@
+# Rahasia — jangan pernah di-commit. Pakai .env.example sebagai template.
+.env
+.env.*
+!.env.example
+
+node_modules/
+
+# Artefak lokal. Bukan *.log — radius/mods-available/detail.log itu file config
+# FreeRADIUS, bukan log.
+npm-debug.log*
+uploads/
+tmp/

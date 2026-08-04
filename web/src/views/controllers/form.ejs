@@ -1,0 +1,78 @@
+<%- include('/partials/head', { title: controller.id ? 'Edit Controller' : 'Tambah Controller' }) %>
+
+<section class="card" style="max-width:720px">
+  <div class="card__head">
+    <h2><%= controller.id ? 'Edit controller' : 'Controller baru' %></h2>
+    <div class="btn-row"><a class="btn btn--sm" href="/controllers">Kembali</a></div>
+  </div>
+  <div class="card__body">
+    <% if (error) { %>
+    <div class="alert alert--danger" role="alert">
+      <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+      <div><%= error %></div>
+    </div>
+    <% } %>
+
+    <form action="/controllers/<%= controller.id || '' %>" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="field__label" for="name">Nama<span class="field__req" aria-hidden="true">*</span></label>
+          <input type="text" id="name" name="name" required value="<%= controller.name || '' %>"
+                 placeholder="UniFi Pusat">
+        </div>
+        <div class="field">
+          <label class="field__label" for="ip_address">IP address / CIDR<span class="field__req" aria-hidden="true">*</span></label>
+          <input type="text" id="ip_address" name="ip_address" required
+                 value="<%= controller.ip_address || '' %>" placeholder="192.168.1.10"
+                 spellcheck="false" aria-describedby="ip-hint">
+          <span class="field__hint" id="ip-hint">IP sumber request RADIUS. Boleh satu host (<code class="mono">192.168.1.10</code>) atau subnet (<code class="mono">192.168.1.0/24</code>).</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="shared_secret">
+          Shared secret RADIUS<% if (!controller.id) { %><span class="field__req" aria-hidden="true">*</span><% } %>
+        </label>
+        <input type="password" id="shared_secret" name="shared_secret"
+               <%= controller.id ? '' : 'required' %> autocomplete="new-password"
+               minlength="8" aria-describedby="secret-hint"
+               placeholder="<%= controller.id ? 'Kosongkan bila tidak diganti' : 'Minimal 8 karakter' %>">
+        <span class="field__hint" id="secret-hint">
+          Minimal 8 karakter, harus sama dengan yang diisi di UniFi.
+          <% if (controller.id) { %>Kosongkan untuk mempertahankan secret yang sekarang — nilainya tidak pernah ditampilkan ulang.<% } %>
+        </span>
+      </div>
+
+      <div class="field">
+        <label class="check" for="enabled">
+          <input type="checkbox" id="enabled" name="enabled" value="1"
+                 <%= controller.enabled === undefined || controller.enabled ? 'checked' : '' %>>
+          <span>Aktif — terima request RADIUS dari controller ini</span>
+        </label>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="note">Catatan</label>
+        <input type="text" id="note" name="note" value="<%= controller.note || '' %>">
+      </div>
+
+      <div class="alert alert--warning" role="note">
+        <svg class="icon" aria-hidden="true"><use href="#i-warning"></use></svg>
+        <div>Setelah disimpan, jalankan <code class="mono">docker compose restart radius</code>.
+          FreeRADIUS memuat daftar client hanya pada saat start.</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn--primary" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+          Simpan
+        </button>
+        <a class="btn" href="/controllers">Batal</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+<%- include('/partials/foot') %>

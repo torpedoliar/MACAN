@@ -1,0 +1,77 @@
+<%- include('/partials/head', { title: 'Sesi Online' }) %>
+
+<%
+  const fmt = d => d ? new Date(d).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'medium' }) : '—';
+  const dur = s => {
+    const n = Number(s || 0);
+    const h = Math.floor(n / 3600), m = Math.floor((n % 3600) / 60);
+    return h ? `${h}j ${m}m` : `${m}m`;
+  };
+  const onlineCount = sessions.filter(s => Number(s.is_online) === 1).length;
+%>
+
+<section class="card">
+  <div class="card__head">
+    <h2>Sesi accounting</h2>
+    <div class="btn-row">
+      <a class="btn btn--sm <%= show === 'online' ? 'btn--primary' : '' %>" href="/sessions"
+         <%= show === 'online' ? 'aria-current="true"' : '' %>>Hanya online</a>
+      <a class="btn btn--sm <%= show === 'all' ? 'btn--primary' : '' %>" href="/sessions?show=all"
+         <%= show === 'all' ? 'aria-current="true"' : '' %>>Semua</a>
+    </div>
+  </div>
+
+  <div class="card__body" style="padding-bottom:0">
+    <p class="card__hint">
+      Sesi dianggap online kalau belum menerima Stop dan Interim-Update terakhirnya kurang dari
+      <span class="num"><%= timeout %></span> menit lalu (atur di <a href="/settings">Pengaturan</a>).
+      <%= show === 'all' ? `${onlineCount} dari ${sessions.length} baris masih online.` : '' %>
+    </p>
+  </div>
+
+  <% if (!sessions.length) { %>
+    <div class="card__body empty">
+      <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg>
+      <h3><%= show === 'online' ? 'Tidak ada perangkat online' : 'Belum ada sesi' %></h3>
+      <p><%= show === 'online'
+            ? 'Tidak ada sesi aktif saat ini. Lihat semua sesi untuk riwayat yang sudah berhenti.'
+            : 'Sesi tercatat dari paket accounting UniFi di port 1813/udp. Pastikan accounting sudah aktif di profil RADIUS.' %></p>
+      <% if (show === 'online') { %><a class="btn" href="/sessions?show=all">Lihat semua sesi</a><% } %>
+    </div>
+  <% } else { %>
+  <div class="table-wrap">
+    <table class="data stackable">
+      <thead>
+        <tr><th>Status</th><th>MAC</th><th>SSID</th><th>Controller</th><th>Session ID</th><th>Mulai</th><th>Update terakhir</th><th class="num">Durasi</th></tr>
+      </thead>
+      <tbody>
+        <% sessions.forEach(s => { %>
+        <tr>
+          <td data-label="Status">
+            <% if (Number(s.is_online) === 1) { %>
+            <span class="badge badge--on"><span class="dot" aria-hidden="true"></span>online</span>
+            <% } else if (s.stopped_at) { %>
+            <span class="badge">selesai</span>
+            <% } else { %>
+            <span class="badge badge--disabled">basi</span>
+            <% } %>
+          </td>
+          <td data-label="MAC" class="mono"><%= s.mac_address %></td>
+          <td data-label="SSID"><%= s.ssid_name || '—' %></td>
+          <td data-label="Controller"><%= s.controller_name || 'tidak dikenal' %></td>
+          <td data-label="Session ID" class="mono"><%= s.session_id %></td>
+          <td data-label="Mulai" class="num"><%= fmt(s.started_at) %></td>
+          <td data-label="Update terakhir" class="num"><%= fmt(s.last_update_at) %></td>
+          <td data-label="Durasi" class="num"><%= dur(s.duration_seconds) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="card__body">
+    <p class="card__hint">Menampilkan <%= sessions.length %> sesi (maksimal 500). Status "basi" berarti tidak ada Stop tapi update terakhirnya sudah melewati batas timeout.</p>
+  </div>
+  <% } %>
+</section>
+
+<%- include('/partials/foot') %>

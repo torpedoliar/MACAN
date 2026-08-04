@@ -1,0 +1,151 @@
+<%- include('/partials/head', { title: 'MAC Rules' }) %>
+
+<% const fmt = d => d ? new Date(d).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : '—'; %>
+
+<% if (error) { %>
+<div class="alert alert--danger" role="alert">
+  <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+  <div><strong>Gagal.</strong> <%= error %></div>
+</div>
+<% } %>
+<% if (imported) { %>
+<div class="alert alert--success" role="status" data-autodismiss>
+  <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+  <div><strong><%= imported %> baris tersimpan.</strong><%= skipped ? ` ${skipped} baris dilewati.` : '' %></div>
+</div>
+<% } %>
+
+<section class="card">
+  <div class="card__head">
+    <h2>Rule MAC</h2>
+    <div class="btn-row">
+      <a class="btn btn--primary btn--sm" href="/rules/new">
+        <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+        Tambah rule
+      </a>
+      <a class="btn btn--sm" href="/rules/export.csv">
+        <svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>
+        Export CSV
+      </a>
+      <a class="btn btn--sm" href="/rules/template.csv">
+        <svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>
+        Template
+      </a>
+    </div>
+  </div>
+  <div class="card__body">
+    <form action="/rules" method="GET" class="filters">
+      <div class="field">
+        <label class="field__label" for="q">Cari</label>
+        <input type="search" id="q" name="q" value="<%= filters.q %>" placeholder="MAC, SSID, pemilik, perangkat">
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-status">Status</label>
+        <select id="f-status" name="status">
+          <option value="">Semua</option>
+          <option value="allow" <%= filters.status === 'allow' ? 'selected' : '' %>>Allow</option>
+          <option value="deny" <%= filters.status === 'deny' ? 'selected' : '' %>>Deny</option>
+          <option value="disabled" <%= filters.status === 'disabled' ? 'selected' : '' %>>Nonaktif</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-ctrl">Scope</label>
+        <select id="f-ctrl" name="controller_id">
+          <option value="">Semua</option>
+          <option value="global" <%= filters.controller_id === 'global' ? 'selected' : '' %>>Global</option>
+          <% controllers.forEach(c => { %>
+          <option value="<%= c.id %>" <%= String(filters.controller_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="filters__actions">
+        <button class="btn btn--primary" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          Filter
+        </button>
+        <a class="btn" href="/rules">Reset</a>
+      </div>
+    </form>
+  </div>
+  <% if (!rules.length) { %>
+    <div class="card__body empty">
+      <svg class="icon" aria-hidden="true"><use href="#i-empty"></use></svg>
+      <h3>Belum ada rule</h3>
+      <p>Tambah rule manual, import CSV, atau setujui perangkat dari halaman Approval.</p>
+      <div class="btn-row" style="justify-content:center">
+        <a class="btn btn--primary" href="/rules/new">Tambah rule</a>
+        <a class="btn" href="/approvals">Ke Approval</a>
+      </div>
+    </div>
+  <% } else { %>
+  <div class="table-wrap">
+    <table class="data stackable">
+      <thead>
+        <tr>
+          <th>MAC</th><th>SSID</th><th>Scope</th><th>Status</th>
+          <th>Pemilik</th><th>Perangkat</th><th>Terakhir terlihat</th><th class="actions">Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rules.forEach(r => { %>
+        <tr>
+          <td data-label="MAC" class="mono"><%= r.mac_address %></td>
+          <td data-label="SSID"><%= r.ssid_name %></td>
+          <td data-label="Scope">
+            <% if (r.controller_id) { %><%= r.controller_name || ('#' + r.controller_id) %><% } else { %>
+            <span class="badge badge--accent">Global</span><% } %>
+          </td>
+          <td data-label="Status"><span class="badge badge--<%= r.status %>"><%= r.status %></span></td>
+          <td data-label="Pemilik"><%= r.owner_name || '—' %></td>
+          <td data-label="Perangkat"><%= r.device_name || '—' %></td>
+          <td data-label="Terakhir terlihat" class="num"><%= fmt(r.last_seen_at) %></td>
+          <td data-label="Aksi" class="actions">
+            <a class="btn btn--sm" href="/rules/<%= r.id %>/edit">
+              <svg class="icon" aria-hidden="true"><use href="#i-edit"></use></svg>
+              Edit
+            </a>
+            <form action="/rules/<%= r.id %>/delete" method="POST"
+                  data-confirm="Hapus rule <%= r.mac_address %> di SSID <%= r.ssid_name %>?">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="btn btn--sm btn--danger" type="submit">
+                <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
+                Hapus
+              </button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="card__body">
+    <p class="card__hint">Menampilkan <%= rules.length %> rule (maksimal 500 per halaman). Persempit dengan filter di atas.</p>
+  </div>
+  <% } %>
+</section>
+<section class="card">
+  <div class="card__head"><h2>Import CSV</h2></div>
+  <div class="card__body">
+    <form action="/rules/import" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="field">
+        <label class="field__label" for="csv">File CSV<span class="field__req" aria-hidden="true">*</span></label>
+        <input type="file" id="csv" name="csv" accept=".csv,text/csv" required
+               aria-describedby="csv-hint">
+        <span class="field__hint" id="csv-hint">
+          Kolom: <code class="mono">scope,controller,ssid,mac,status,owner,device,note</code>.
+          <code class="mono">scope</code> = <code class="mono">global</code> atau <code class="mono">controller</code>
+          (kalau <code class="mono">controller</code>, kolom <code class="mono">controller</code> harus berisi nama controller yang sudah terdaftar).
+          MAC boleh dengan atau tanpa pemisah. Baris header opsional. Maksimal 2 MB.
+          Rule yang sudah ada akan diperbarui, bukan diduplikasi.
+        </span>
+      </div>
+      <button class="btn btn--primary" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>
+        Import
+      </button>
+    </form>
+  </div>
+</section>
+
+<%- include('/partials/foot') %>

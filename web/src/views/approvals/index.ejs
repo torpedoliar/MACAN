@@ -1,0 +1,79 @@
+<%- include('/partials/head', { title: 'Approval' }) %>
+
+<% const fmt = d => new Date(d).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }); %>
+
+<% if (error) { %>
+<div class="alert alert--danger" role="alert">
+  <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+  <div><%= error %></div>
+</div>
+<% } %>
+<% if (approved) { %>
+<div class="alert alert--success" role="status" data-autodismiss>
+  <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+  <div>Rule untuk <span class="mono"><%= approved %></span> tersimpan.</div>
+</div>
+<% } %>
+
+<section class="card">
+  <div class="card__head">
+    <h2>Menunggu keputusan</h2>
+    <div class="btn-row"><a class="btn btn--sm" href="/rules">Semua rule</a></div>
+  </div>
+
+  <% if (!pending.length) { %>
+    <div class="card__body empty">
+      <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+      <h3>Tidak ada yang menunggu</h3>
+      <p>Semua MAC yang pernah ditolak sudah punya rule. Perangkat baru yang ditolak
+        akan muncul di sini otomatis.</p>
+    </div>
+  <% } else { %>
+  <div class="card__body" style="padding-bottom:0">
+    <p class="card__hint">
+      <%= pending.length %> perangkat ditolak dan belum punya rule.
+      Allow membuat rule izin, Deny membuat rule tolak permanen sehingga hilang dari daftar ini.
+    </p>
+  </div>
+  <div class="table-wrap">
+    <table class="data stackable">
+      <thead>
+        <tr><th>MAC</th><th>SSID</th><th>Controller</th><th class="num">Percobaan</th><th>Terakhir</th><th class="actions">Keputusan</th></tr>
+      </thead>
+      <tbody>
+        <% pending.forEach(p => { %>
+        <tr>
+          <td data-label="MAC" class="mono"><%= p.mac_address %></td>
+          <td data-label="SSID"><%= p.ssid_name %></td>
+          <td data-label="Controller">
+            <% if (p.controller_id) { %><%= p.controller_name || ('#' + p.controller_id) %>
+            <% } else { %><span class="badge">tidak dikenal</span><% } %>
+          </td>
+          <td data-label="Percobaan" class="num"><%= p.hit_count %></td>
+          <td data-label="Terakhir" class="num"><%= fmt(p.last_seen) %></td>
+          <td data-label="Keputusan" class="actions">
+            <% ['allow', 'deny'].forEach(decision => { %>
+            <form action="/approvals" method="POST"
+                  data-confirm="<%= decision === 'allow' ? 'Izinkan' : 'Tolak permanen' %> <%= p.mac_address %> di SSID <%= p.ssid_name %>?">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="mac_address" value="<%= p.mac_address %>">
+              <input type="hidden" name="ssid_name" value="<%= p.ssid_name %>">
+              <input type="hidden" name="controller_id" value="<%= p.controller_id || '' %>">
+              <input type="hidden" name="scope" value="<%= p.controller_id ? 'controller' : 'global' %>">
+              <input type="hidden" name="status" value="<%= decision %>">
+              <button class="btn btn--sm <%= decision === 'allow' ? 'btn--primary' : 'btn--danger' %>" type="submit">
+                <svg class="icon" aria-hidden="true"><use href="#<%= decision === 'allow' ? 'i-check' : 'i-x-circle' %>"></use></svg>
+                <%= decision === 'allow' ? 'Allow' : 'Deny' %>
+              </button>
+            </form>
+            <% }) %>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+<%- include('/partials/foot') %>

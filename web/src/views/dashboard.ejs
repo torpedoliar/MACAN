@@ -1,0 +1,162 @@
+<%- include('/partials/head', { title: 'Dashboard' }) %>
+
+<%
+  const maxBar = Math.max(1, ...chart.map(c => c.accepts + c.rejects));
+  const chartTotal = chart.reduce((n, c) => n + c.accepts + c.rejects, 0);
+  const pct = n => Math.round((n / maxBar) * 100);
+  const fmt = d => new Date(d).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'medium' });
+%>
+
+<section class="stats">
+  <a class="stat stat--success" href="/sessions">
+    <span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg></span>
+    <span>
+      <span class="stat__label">Perangkat online</span>
+      <span class="stat__value num"><%= stats.online %></span>
+      <span class="stat__meta">sesi aktif sekarang</span>
+    </span>
+  </a>
+  <a class="stat <%= stats.pending ? 'stat--warning' : '' %>" href="/approvals">
+    <span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-inbox"></use></svg></span>
+    <span>
+      <span class="stat__label">Menunggu approval</span>
+      <span class="stat__value num"><%= stats.pending %></span>
+      <span class="stat__meta">MAC ditolak, belum punya rule</span>
+    </span>
+  </a>
+  <a class="stat" href="/rules">
+    <span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg></span>
+    <span>
+      <span class="stat__label">MAC rule</span>
+      <span class="stat__value num"><%= stats.rulesTotal %></span>
+      <span class="stat__meta"><%= stats.rulesAllow %> allow · <%= stats.rulesDeny %> deny · <%= stats.rulesDisabled %> nonaktif</span>
+    </span>
+  </a>
+  <a class="stat stat--success" href="/logs?result=accept">
+    <span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+    <span>
+      <span class="stat__label">Accept 24 jam</span>
+      <span class="stat__value num"><%= stats.accepts24 %></span>
+      <span class="stat__meta">autentikasi berhasil</span>
+    </span>
+  </a>
+  <a class="stat stat--danger" href="/logs?result=reject">
+    <span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg></span>
+    <span>
+      <span class="stat__label">Reject 24 jam</span>
+      <span class="stat__value num"><%= stats.rejects24 %></span>
+      <span class="stat__meta">autentikasi ditolak</span>
+    </span>
+  </a>
+  <a class="stat stat--info" href="/controllers">
+    <span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-router"></use></svg></span>
+    <span>
+      <span class="stat__label">Controller</span>
+      <span class="stat__value num"><%= stats.controllers %></span>
+      <span class="stat__meta"><%= stats.controllersEnabled %> aktif</span>
+    </span>
+  </a>
+  <a class="stat stat--info" href="/ssids">
+    <span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-wifi"></use></svg></span>
+    <span>
+      <span class="stat__label">SSID</span>
+      <span class="stat__value num"><%= stats.ssids %></span>
+      <span class="stat__meta"><%= stats.ssidsEnabled %> aktif</span>
+    </span>
+  </a>
+  <a class="stat" href="/audit">
+    <span class="stat__icon"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg></span>
+    <span>
+      <span class="stat__label">Audit log</span>
+      <span class="stat__value" style="font-size:1.1rem;padding-top:6px">Lihat</span>
+      <span class="stat__meta">riwayat tindakan admin</span>
+    </span>
+  </a>
+</section>
+<section class="card">
+  <div class="card__head">
+    <h2>Autentikasi 24 jam terakhir</h2>
+    <div class="legend" style="margin-left:auto">
+      <span><i style="background:var(--success)"></i> Accept</span>
+      <span><i style="background:var(--danger)"></i> Reject</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <% if (!chartTotal) { %>
+      <div class="empty">
+        <svg class="icon" aria-hidden="true"><use href="#i-empty"></use></svg>
+        <h3>Belum ada autentikasi</h3>
+        <p>Tidak ada percobaan autentikasi dalam 24 jam terakhir. Pastikan controller sudah
+          terdaftar dan mengirim request ke port 1812/udp.</p>
+        <a class="btn" href="/controllers">Cek controller</a>
+      </div>
+    <% } else { %>
+      <div class="chart" role="img"
+           aria-label="Grafik batang autentikasi per jam, 24 jam terakhir: <%= stats.accepts24 %> accept, <%= stats.rejects24 %> reject.">
+        <% chart.forEach(c => { %>
+        <div class="chart__col" tabindex="0" aria-label="<%= c.label %>: <%= c.accepts %> accept, <%= c.rejects %> reject">
+          <span class="chart__tip"><%= c.label %> · <%= c.accepts %> accept · <%= c.rejects %> reject</span>
+          <% if (c.rejects) { %><span class="chart__bar chart__bar--reject" style="height:<%= pct(c.rejects) %>%"></span><% } %>
+          <% if (c.accepts) { %><span class="chart__bar chart__bar--accept" style="height:<%= pct(c.accepts) %>%"></span><% } %>
+        </div>
+        <% }) %>
+      </div>
+      <div class="chart__axis" aria-hidden="true">
+        <% chart.forEach((c, i) => { %><span><%= i % 3 === 0 ? c.label.slice(0, 2) : '' %></span><% }) %>
+      </div>
+      <details style="margin-top:var(--s4)">
+        <summary class="card__hint" style="cursor:pointer">Lihat sebagai tabel</summary>
+        <div class="table-wrap" style="margin-top:var(--s3)">
+          <table class="data">
+            <thead><tr><th>Jam</th><th class="num">Accept</th><th class="num">Reject</th></tr></thead>
+            <tbody>
+              <% chart.forEach(c => { %>
+              <tr><td class="num"><%= c.label %></td><td class="num"><%= c.accepts %></td><td class="num"><%= c.rejects %></td></tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    <% } %>
+  </div>
+</section>
+<section class="card">
+  <div class="card__head">
+    <h2>Aktivitas terbaru</h2>
+    <div class="btn-row">
+      <a class="btn btn--sm" href="/logs">
+        <svg class="icon" aria-hidden="true"><use href="#i-list"></use></svg>
+        Semua log
+      </a>
+    </div>
+  </div>
+  <% if (!recent.length) { %>
+    <div class="card__body empty">
+      <svg class="icon" aria-hidden="true"><use href="#i-empty"></use></svg>
+      <h3>Belum ada log autentikasi</h3>
+      <p>Log muncul di sini setelah controller mengirim request MAC auth pertamanya.</p>
+    </div>
+  <% } else { %>
+  <div class="table-wrap">
+    <table class="data stackable">
+      <thead>
+        <tr><th>Waktu</th><th>MAC</th><th>SSID</th><th>Controller</th><th>Hasil</th><th>Alasan</th></tr>
+      </thead>
+      <tbody>
+        <% recent.forEach(r => { %>
+        <tr>
+          <td data-label="Waktu" class="num"><%= fmt(r.created_at) %></td>
+          <td data-label="MAC" class="mono"><%= r.mac_address || '—' %></td>
+          <td data-label="SSID"><%= r.ssid_name || '—' %></td>
+          <td data-label="Controller"><%= r.controller_name || 'tidak dikenal' %></td>
+          <td data-label="Hasil"><span class="badge badge--<%= r.result %>"><span class="dot" aria-hidden="true"></span><%= r.result %></span></td>
+          <td data-label="Alasan"><%= r.reason || '—' %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+<%- include('/partials/foot') %>

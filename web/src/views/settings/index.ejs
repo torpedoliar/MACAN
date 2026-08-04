@@ -1,0 +1,176 @@
+<%- include('/partials/head', { title: 'Pengaturan' }) %>
+
+<% const v = (k, d) => cfg[k] !== undefined && cfg[k] !== '' ? cfg[k] : d;
+   const maintOn = cfg.maintenance_mode === '1'; %>
+
+<% if (errors && errors.length) { %>
+<div class="alert alert--danger" role="alert">
+  <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+  <div><strong>Gagal disimpan.</strong> <%= errors.join(' ') %></div>
+</div>
+<% } %>
+<% if (saved) { %>
+<div class="alert alert--success" role="status" data-autodismiss>
+  <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+  <div>Pengaturan tersimpan.</div>
+</div>
+<% } %>
+<% if (tested) { %>
+<div class="alert alert--info" role="status">
+  <svg class="icon" aria-hidden="true"><use href="#i-bell"></use></svg>
+  <div><%= tested %></div>
+</div>
+<% } %>
+
+<section class="card">
+  <div class="card__head">
+    <h2>Mode maintenance</h2>
+    <span class="badge badge--<%= maintOn ? 'deny' : 'on' %>" style="margin-left:auto">
+      <span class="dot" aria-hidden="true"></span><%= maintOn ? 'aktif' : 'nonaktif' %>
+    </span>
+  </div>
+  <div class="card__body">
+    <p class="card__hint" style="margin-bottom:var(--s4)">
+      Saat aktif, FreeRADIUS <strong>menolak semua autentikasi baru</strong> dan perubahan data di
+      panel ini dinonaktifkan. Sesi yang sudah tersambung tidak diputus, tapi perangkat yang
+      roaming atau reconnect akan gagal.
+    </p>
+    <form action="/settings" method="POST"
+          data-confirm="<%= maintOn ? 'Matikan mode maintenance? Autentikasi akan diterima kembali.' : 'Aktifkan mode maintenance? Semua autentikasi baru akan DITOLAK sampai dimatikan lagi.' %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="maintenance_mode" value="<%= maintOn ? '0' : '1' %>">
+      <button class="btn <%= maintOn ? 'btn--primary' : 'btn--danger' %>" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#<%= maintOn ? 'i-check' : 'i-warning' %>"></use></svg>
+        <%= maintOn ? 'Matikan maintenance' : 'Aktifkan maintenance' %>
+      </button>
+    </form>
+  </div>
+</section>
+<form action="/settings" method="POST">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <section class="card">
+    <div class="card__head"><h2>Retensi &amp; sesi</h2></div>
+    <div class="card__body">
+      <div class="grid-2">
+        <div class="field">
+          <label class="field__label" for="auth_log_retention_days">Simpan auth log (hari)</label>
+          <input type="number" id="auth_log_retention_days" name="auth_log_retention_days"
+                 inputmode="numeric" min="1" max="3650" required
+                 value="<%= v('auth_log_retention_days', '90') %>" aria-describedby="h-retention">
+          <span class="field__hint" id="h-retention">1–3650. Baris yang lebih tua dihapus otomatis
+            oleh cron harian. Audit log tidak ikut terhapus.</span>
+        </div>
+        <div class="field">
+          <label class="field__label" for="online_session_timeout_minutes">Batas sesi online (menit)</label>
+          <input type="number" id="online_session_timeout_minutes" name="online_session_timeout_minutes"
+                 inputmode="numeric" min="1" max="10080" required
+                 value="<%= v('online_session_timeout_minutes', '120') %>" aria-describedby="h-timeout">
+          <span class="field__hint" id="h-timeout">1–10080. Sesi tanpa paket Stop dianggap basi kalau
+            Interim-Update terakhirnya lebih lama dari ini.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head"><h2>Deteksi lonjakan reject</h2></div>
+    <div class="card__body">
+      <div class="grid-2">
+        <div class="field">
+          <label class="field__label" for="reject_spike_count">Jumlah reject</label>
+          <input type="number" id="reject_spike_count" name="reject_spike_count"
+                 inputmode="numeric" min="1" max="10000" required
+                 value="<%= v('reject_spike_count', '5') %>" aria-describedby="h-spike">
+          <span class="field__hint" id="h-spike">1–10000. Notifikasi terkirim kalau satu MAC ditolak
+            sebanyak ini dalam rentang waktu di sebelah.</span>
+        </div>
+        <div class="field">
+          <label class="field__label" for="reject_spike_window_minutes">Rentang waktu (menit)</label>
+          <input type="number" id="reject_spike_window_minutes" name="reject_spike_window_minutes"
+                 inputmode="numeric" min="1" max="1440" required
+                 value="<%= v('reject_spike_window_minutes', '10') %>" aria-describedby="h-window">
+          <span class="field__hint" id="h-window">1–1440.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card__head"><h2>Notifikasi</h2></div>
+    <div class="card__body">
+      <div class="field">
+        <label class="field__label" for="notification_webhook_url">Webhook URL</label>
+        <input type="url" id="notification_webhook_url" name="notification_webhook_url"
+               spellcheck="false" placeholder="https://hooks.example.com/…"
+               value="<%= v('notification_webhook_url', '') %>" aria-describedby="h-webhook">
+        <span class="field__hint" id="h-webhook">Harus http:// atau https://. Kosongkan untuk
+          mematikan webhook. Payload dikirim sebagai JSON POST.</span>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label class="field__label" for="telegram_bot_token">Telegram bot token</label>
+          <input type="password" id="telegram_bot_token" name="telegram_bot_token"
+                 autocomplete="off" spellcheck="false"
+                 placeholder="<%= hasSecret.telegram_bot_token ? 'Tersimpan — kosongkan bila tidak diganti' : 'Belum diatur' %>"
+                 aria-describedby="h-token">
+          <span class="field__hint" id="h-token">Nilainya tidak pernah ditampilkan lagi setelah
+            disimpan. Kosong berarti nilai lama dipakai terus.</span>
+        </div>
+        <div class="field">
+          <label class="field__label" for="telegram_chat_id">Telegram chat ID</label>
+          <input type="text" id="telegram_chat_id" name="telegram_chat_id" spellcheck="false"
+                 value="<%= v('telegram_chat_id', '') %>" aria-describedby="h-chat">
+          <span class="field__hint" id="h-chat">Boleh negatif untuk grup, mis. <code class="mono">-1001234567890</code>.</span>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field__label" for="notification_dedupe_minutes">Jeda anti-spam (menit)</label>
+        <input type="number" id="notification_dedupe_minutes" name="notification_dedupe_minutes"
+               inputmode="numeric" min="0" max="10080" required
+               value="<%= v('notification_dedupe_minutes', '60') %>" aria-describedby="h-dedupe">
+        <span class="field__hint" id="h-dedupe">0–10080. Notifikasi yang sama tidak dikirim ulang
+          selama rentang ini. 0 berarti kirim setiap kali.</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="btn-row" style="margin-bottom:var(--s6)">
+    <button class="btn btn--primary" type="submit">
+      <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+      Simpan pengaturan
+    </button>
+  </div>
+</form>
+
+<section class="card">
+  <div class="card__head"><h2>Aksi notifikasi</h2></div>
+  <div class="card__body">
+    <p class="card__hint" style="margin-bottom:var(--s4)">
+      Tes mengirim satu pesan ke semua kanal yang aktif. Hasilnya muncul di atas halaman ini
+      dan tercatat di <a href="/audit">Audit Log</a>.
+    </p>
+    <div class="btn-row">
+      <form action="/settings/test-notification" method="POST">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-bell"></use></svg>
+          Kirim notifikasi tes
+        </button>
+      </form>
+      <% if (hasSecret.telegram_bot_token) { %>
+      <form action="/settings/clear-secret" method="POST"
+            data-confirm="Hapus Telegram bot token? Notifikasi Telegram akan mati sampai token baru diisi.">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="name" value="telegram_bot_token">
+        <button class="btn btn--danger" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
+          Hapus bot token
+        </button>
+      </form>
+      <% } %>
+    </div>
+  </div>
+</section>
+
+<%- include('/partials/foot') %>
+

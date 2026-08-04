@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title><%= title %> · MACan</title>
+  <link rel="stylesheet" href="/app.css">
+  <script>
+    // Runs before first paint so a dark-mode user never sees a light flash.
+    try {
+      var t = localStorage.getItem('macan-theme');
+      if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+<a class="skip-link" href="#main">Lewati ke konten utama</a>
+<%- include('/partials/icons') %>
+<div class="app">
+  <%- include('/partials/sidebar') %>
+  <div class="scrim" id="scrim"></div>
+  <main id="main">
+    <header class="topbar">
+      <button class="btn btn--ghost btn--icon topbar__burger" id="burger" type="button"
+              aria-label="Buka menu navigasi" aria-expanded="false" aria-controls="sidebar">
+        <svg class="icon" aria-hidden="true"><use href="#i-menu"></use></svg>
+      </button>
+      <span class="topbar__title"><%= title %></span>
+      <div class="topbar__spacer"></div>
+      <button class="btn btn--ghost btn--icon" id="theme-toggle" type="button"
+              aria-label="Ganti tema terang atau gelap">
+        <svg class="icon" aria-hidden="true"><use href="#i-theme"></use></svg>
+      </button>
+    </header>
+    <div class="content">
+      <div class="content__inner stack">
+        <% if (typeof maintenance !== 'undefined' && maintenance) { %>
+        <div class="alert alert--warning" role="status">
+          <svg class="icon" aria-hidden="true"><use href="#i-warning"></use></svg>
+          <div><strong>Mode maintenance aktif.</strong> RADIUS menolak semua autentikasi baru dan
+            perubahan data dinonaktifkan. Matikan di <a href="/settings">Pengaturan</a>.</div>
+        </div>
+        <% } %>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Masuk · MACan</title>
+  <link rel="stylesheet" href="/app.css">
+  <script>
+    try {
+      var t = localStorage.getItem('macan-theme');
+      if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+<%- include('/partials/icons') %>
+<main class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      <span class="sidebar__mark" aria-hidden="true">MAC</span>
+      <span class="sidebar__name">MACan<span class="sidebar__sub">MAC Auth UniFi</span></span>
+    </div>
+    <div class="card">
+      <div class="card__body">
+        <h1 style="margin-bottom:var(--s2)">Masuk</h1>
+        <p class="card__hint" style="margin-bottom:var(--s5)">Gunakan akun admin MACan.</p>
+
+        <% if (error) { %>
+        <div class="alert alert--danger" role="alert">
+          <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+          <div><%= error %></div>
+        </div>
+        <% } %>
+
+        <form action="/login" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="field">
+            <label class="field__label" for="email">Email<span class="field__req" aria-hidden="true">*</span></label>
+            <input type="email" id="email" name="email" required autocomplete="username"
+                   autocapitalize="none" spellcheck="false" autofocus>
+          </div>
+          <div class="field">
+            <label class="field__label" for="password">Password<span class="field__req" aria-hidden="true">*</span></label>
+            <input type="password" id="password" name="password" required autocomplete="current-password">
+          </div>
+          <button class="btn btn--primary" type="submit" style="width:100%">
+            <svg class="icon" aria-hidden="true"><use href="#i-logout"></use></svg>
+            Masuk
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/app.js" defer></script>
+</body>
+</html>

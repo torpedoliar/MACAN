@@ -1,0 +1,83 @@
+<%- include('/partials/head', { title: 'Controller' }) %>
+
+<% if (error) { %>
+<div class="alert alert--danger" role="alert">
+  <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+  <div><%= error %></div>
+</div>
+<% } %>
+<% if (notice) { %>
+<div class="alert alert--info" role="status">
+  <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+  <div><%= notice %></div>
+</div>
+<% } %>
+
+<section class="card">
+  <div class="card__head">
+    <h2>Controller UniFi</h2>
+    <div class="btn-row">
+      <a class="btn btn--primary btn--sm" href="/controllers/new">
+        <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+        Tambah controller
+      </a>
+    </div>
+  </div>
+
+  <% if (!controllers.length) { %>
+    <div class="card__body empty">
+      <svg class="icon" aria-hidden="true"><use href="#i-router"></use></svg>
+      <h3>Belum ada controller</h3>
+      <p>Daftarkan controller UniFi beserta shared secret RADIUS-nya supaya request MAC auth
+        bisa diterima.</p>
+      <a class="btn btn--primary" href="/controllers/new">Tambah controller</a>
+    </div>
+  <% } else { %>
+  <div class="table-wrap">
+    <table class="data stackable">
+      <thead>
+        <tr><th>Nama</th><th>IP / CIDR</th><th>Status</th><th class="num">SSID</th><th class="num">Rule</th><th>Catatan</th><th class="actions">Aksi</th></tr>
+      </thead>
+      <tbody>
+        <% controllers.forEach(c => { %>
+        <tr>
+          <td data-label="Nama"><strong><%= c.name %></strong></td>
+          <td data-label="IP / CIDR" class="mono"><%= c.ip_address %></td>
+          <td data-label="Status">
+            <span class="badge badge--<%= c.enabled ? 'on' : 'off' %>">
+              <span class="dot" aria-hidden="true"></span><%= c.enabled ? 'aktif' : 'nonaktif' %>
+            </span>
+          </td>
+          <td data-label="SSID" class="num"><%= c.ssid_count %></td>
+          <td data-label="Rule" class="num"><%= c.rule_count %></td>
+          <td data-label="Catatan"><%= c.note || '—' %></td>
+          <td data-label="Aksi" class="actions">
+            <a class="btn btn--sm" href="/controllers/<%= c.id %>/edit">
+              <svg class="icon" aria-hidden="true"><use href="#i-edit"></use></svg>
+              Edit
+            </a>
+            <form action="/controllers/<%= c.id %>/delete" method="POST"
+                  data-confirm="Hapus controller <%= c.name %>? Tindakan ini tidak bisa dibatalkan.">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="btn btn--sm btn--danger" type="submit">
+                <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
+                Hapus
+              </button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="card__body">
+    <div class="alert alert--warning" role="note" style="margin:0">
+      <svg class="icon" aria-hidden="true"><use href="#i-warning"></use></svg>
+      <div>FreeRADIUS membaca daftar controller hanya saat start. Setelah menambah, mengubah IP,
+        atau mengganti shared secret, jalankan <code class="mono">docker compose restart radius</code>.</div>
+    </div>
+  </div>
+  <% } %>
+</section>
+
+<%- include('/partials/foot') %>

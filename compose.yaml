@@ -1,0 +1,58 @@
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: macan
+      MARIADB_USER: macan
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks: [internal]
+
+  web:
+    build: ./web
+    environment:
+      DB_HOST: db
+      DB_NAME: macan
+      DB_USER: macan
+      DB_PASSWORD: ${DB_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # Set to 1 only when serving over HTTPS, otherwise the session cookie
+      # is never sent and login silently fails.
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+    ports:
+      - "880:880"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [internal]
+
+  radius:
+    build: ./radius
+    environment:
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  db_data:

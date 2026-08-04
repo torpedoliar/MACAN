@@ -1,0 +1,185 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const ejs = require('ejs');
+const { normalizeMac, parseSsid, chooseRule } = require('../src/radius-policy');
+
+assert.equal(normalizeMac('AA-BB-CC-DD-EE-FF'), 'aa:bb:cc:dd:ee:ff');
+assert.equal(normalizeMac('aabbccddeeff'), 'aa:bb:cc:dd:ee:ff');
+assert.equal(normalizeMac('bad'), null);
+assert.equal(parseSsid('aa:bb:cc:dd:ee:ff:Office'), 'Office');
+assert.deepEqual(chooseRule({ status: 'deny' }, { status: 'allow' }), { result: 'reject', reason: 'rule deny' });
+assert.deepEqual(chooseRule(null, { status: 'allow' }), { result: 'accept', reason: 'rule allow' });
+assert.deepEqual(chooseRule(null, null), { result: 'reject', reason: 'rule tidak ditemukan' });
+
+// Every view must compile, and every POST form must carry a CSRF field. Both
+// classes of bug only surface at request time otherwise, and a broken view means
+// a blank page after login — which is exactly how this app failed before.
+const VIEWS = path.join(__dirname, '..', 'src', 'views');
+const files = [];
+(function walk(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full);
+    else if (entry.name.endsWith('.ejs')) files.push(full);
+  }
+})(VIEWS);
+assert.ok(files.length >= 15, `hanya ${files.length} view ditemukan`);
+
+for (const file of files) {
+  const src = fs.readFileSync(file, 'utf8');
+  const rel = path.relative(VIEWS, file).replace(/\\/g, '/');
+  // Syntax only — rendering happens below with sample locals.
+  ejs.compile(src, { filename: file, root: VIEWS, views: [VIEWS] });
+
+  // Partial includes must be absolute from the views root; a relative include
+  // resolves against the including file's directory and breaks in subfolders.
+  for (const m of src.matchAll(/include\(\s*'([^']+)'/g)) {
+    assert.ok(m[1].startsWith('/'), `${rel}: include('${m[1]}') harus absolut, mis. '/partials/head'`);
+  }
+
+  const forms = src.match(/<form[^>]*method="POST"[\s\S]*?<\/form>/gi) || [];
+  forms.forEach((form, i) => {
+    assert.ok(form.includes('name="_csrf"'), `${rel}: form POST #${i + 1} tidak punya field _csrf`);
+  });
+
+  // The Telegram token is masked by routes/settings.js on purpose; echoing it
+  // back into an input would undo that.
+  assert.ok(!/name="telegram_bot_token"[^>]*value=/.test(src),
+    `${rel}: nilai telegram_bot_token tidak boleh dikembalikan ke input`);
+}
+
+// Every route's res.render target must exist.
+const ROUTES = path.join(__dirname, '..', 'src');
+const rendered = new Set();
+(function walkJs(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory() && entry.name !== 'views') walkJs(full);
+    else if (entry.name.endsWith('.js')) {
+      const src = fs.readFileSync(full, 'utf8');
+      for (const m of src.matchAll(/res\.render\(\s*'([^']+)'/g)) rendered.add(m[1]);
+      // The global csrf middleware cannot check a multipart body — multer parses
+      // it later, inside the route — so every upload route must call verifyCsrf
+      // itself right after the upload middleware. Missing it = unprotected POST.
+      for (const m of src.matchAll(/router\.post\(([^;]*?upload\.single\([^)]*\)[^;]*?),\s*wrap/g)) {
+        assert.ok(m[1].includes('verifyCsrf'),
+          `${entry.name}: route upload tanpa verifyCsrf — ${m[1].slice(0, 60)}`);
+      }
+    }
+  }
+})(ROUTES);
+for (const view of rendered) {
+  assert.ok(fs.existsSync(path.join(VIEWS, view + '.ejs')), `view "${view}" dirender tapi filenya tidak ada`);
+}
+
+// Express merges app.settings into the render data under the key `settings`, and
+// EJS reads data.settings['view options'] to find its include root. A local of
+// that name shadows it and every absolute include() in the view dies with ENOENT
+// — at request time only, which is how it slipped through once already.
+const RESERVED = ['settings', 'cache', 'filename', '_locals'];
+(function walkLocals(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory() && entry.name !== 'views') walkLocals(full);
+    else if (entry.name.endsWith('.js')) {
+      const src = fs.readFileSync(full, 'utf8');
+      for (const m of src.matchAll(/res\.render\(\s*'[^']+',\s*\{([\s\S]{0,600}?)\n\s*\}\)/g)) {
+        for (const name of RESERVED) {
+          assert.ok(!new RegExp(`(^|[\\s,{])${name}\\s*[:,]`).test(m[1]),
+            `${path.basename(full)}: local "${name}" bentrok dengan internal Express/EJS — ganti namanya`);
+        }
+      }
+    }
+  }
+})(ROUTES);
+
+// Render each page with plausible locals, then again with every array emptied,
+// so both the populated and the empty-state branch execute. A template that
+// throws at request time is what turned "after login" into a blank page before.
+const now = new Date().toISOString();
+const shell = { title: 'X', csrfToken: 'tok', currentPath: '/', admin: { id: 1, email: 'a@b.c' },
+                maintenance: true, pendingCount: 2 };
+const CASES = {
+  'login': { error: 'salah' },
+  'error': { status: 404, message: 'nope' },
+  'dashboard': {
+    stats: { online: 1, pending: 2, rulesTotal: 3, rulesAllow: 2, rulesDeny: 1, rulesDisabled: 0,
+             controllers: 1, controllersEnabled: 1, ssids: 2, ssidsEnabled: 1, accepts24: 5, rejects24: 1 },
+    chart: [{ label: '01:00', accepts: 2, rejects: 1 }, { label: '02:00', accepts: 0, rejects: 0 }],
+    recent: [{ created_at: now, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S',
+               controller_name: 'C', result: 'accept', reason: 'rule allow' }]
+  },
+  'rules/index': {
+    rules: [{ id: 1, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: null,
+              controller_name: null, status: 'allow', owner_name: 'B', device_name: 'D',
+              note: 'n', updated_at: now, last_seen_at: now }],
+    controllers: [{ id: 1, name: 'C' }], filters: { q: '', status: '', controller_id: '' },
+    imported: '3', skipped: '1', error: 'e'
+  },
+  'rules/form': { rule: {}, controllers: [{ id: 1, name: 'C' }], error: 'e' },
+  'approvals/index': {
+    pending: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
+                controller_name: 'C', last_seen: now, hit_count: 3 }],
+    error: 'e', approved: '1'
+  },
+  'controllers/index': {
+    controllers: [{ id: 1, name: 'C', ip_address: '10.0.0.1', enabled: 1, note: 'n',
+                    ssid_count: 1, rule_count: 2 }], error: 'e', notice: 'n'
+  },
+  'controllers/form': { controller: {}, error: 'e' },
+  'ssids/index': {
+    ssids: [{ id: 1, ssid_name: 'S', controller_name: 'C', enabled: 1, auto_created: 1,
+              rule_count: 1, last_seen_at: now }],
+    controllers: [{ id: 1, name: 'C' }], error: 'e', notice: 'n'
+  },
+  'logs/index': {
+    logs: [{ created_at: now, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S',
+             controller_name: 'C', result: 'reject', reason: 'r' }],
+    controllers: [{ id: 1, name: 'C' }], total: 1, page: 2, pages: 3,
+    filters: { mac: '', ssid: '', result: '', controller_id: '', from: '', to: '' }
+  },
+  'sessions/index': {
+    sessions: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_name: 'C',
+                 session_id: 'sid', started_at: now, last_update_at: now, stopped_at: null,
+                 duration_seconds: 4000, is_online: 1 }],
+    timeout: 120, show: 'all'
+  },
+  'audit/index': {
+    logs: [{ created_at: now, admin_email: 'a@b.c', action: 'login', details: { a: 1 } },
+           { created_at: now, admin_email: null, action: 'x', details: 'str' }],
+    admins: [{ id: 1, email: 'a@b.c' }], total: 2, page: 1, pages: 1,
+    filters: { action: '', admin_id: '' }
+  },
+  'settings/index': {
+    cfg: { auth_log_retention_days: '90', online_session_timeout_minutes: '120',
+           reject_spike_count: '5', reject_spike_window_minutes: '10',
+           notification_dedupe_minutes: '60', notification_webhook_url: '',
+           telegram_bot_token: '', telegram_chat_id: '', maintenance_mode: '1' },
+    hasSecret: { telegram_bot_token: true }, errors: ['e'], saved: '1', tested: 'ok'
+  },
+  'data/index': {
+    counts: { controllers: 1, ssids: 2, mac_rules: 3, settings: 9 },
+    staged: { generated_at: now, rows: [{ table: 'controllers', incoming: 1, current: 1 }] },
+    error: 'e', notice: 'n'
+  }
+};
+
+for (const [view, locals] of Object.entries(CASES)) {
+  const file = path.join(VIEWS, view + '.ejs');
+  const src = fs.readFileSync(file, 'utf8');
+  const emptied = Object.fromEntries(Object.entries(locals)
+    .map(([k, v]) => [k, Array.isArray(v) ? [] : (k === 'staged' ? null : v)]));
+  for (const variant of [locals, emptied]) {
+    try {
+      ejs.render(src, { ...shell, ...variant }, { filename: file, root: VIEWS, views: [VIEWS] });
+    } catch (err) {
+      throw new Error(`render ${view} gagal: ${err.message}`);
+    }
+  }
+}
+assert.equal(Object.keys(CASES).length, rendered.size,
+  `${rendered.size} view dirender oleh route, tapi hanya ${Object.keys(CASES).length} punya kasus render`);
+
+console.log(`self-check passed — ${files.length} view compile, ${rendered.size} view render (isi + kosong)`);
+

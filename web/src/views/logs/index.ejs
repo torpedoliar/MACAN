@@ -1,0 +1,113 @@
+<%- include('/partials/head', { title: 'Auth Log' }) %>
+
+<% const fmt = d => new Date(d).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'medium' });
+   const qs = extra => {
+     const p = new URLSearchParams();
+     Object.entries(filters).forEach(([k, v]) => { if (v) p.set(k, v); });
+     Object.entries(extra).forEach(([k, v]) => p.set(k, v));
+     return '?' + p.toString();
+   }; %>
+
+<section class="card">
+  <div class="card__head"><h2>Filter</h2></div>
+  <div class="card__body">
+    <form action="/logs" method="GET" class="filters">
+      <div class="field">
+        <label class="field__label" for="f-mac">MAC</label>
+        <input type="search" id="f-mac" name="mac" value="<%= filters.mac %>" placeholder="aa:bb:cc" spellcheck="false">
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-ssid">SSID</label>
+        <input type="search" id="f-ssid" name="ssid" value="<%= filters.ssid %>" spellcheck="false">
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-result">Hasil</label>
+        <select id="f-result" name="result">
+          <option value="">Semua</option>
+          <option value="accept" <%= filters.result === 'accept' ? 'selected' : '' %>>Accept</option>
+          <option value="reject" <%= filters.result === 'reject' ? 'selected' : '' %>>Reject</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-ctrl">Controller</label>
+        <select id="f-ctrl" name="controller_id">
+          <option value="">Semua</option>
+          <% controllers.forEach(c => { %>
+          <option value="<%= c.id %>" <%= String(filters.controller_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-from">Dari</label>
+        <input type="datetime-local" id="f-from" name="from" value="<%= filters.from %>">
+      </div>
+      <div class="field">
+        <label class="field__label" for="f-to">Sampai</label>
+        <input type="datetime-local" id="f-to" name="to" value="<%= filters.to %>">
+      </div>
+      <div class="filters__actions">
+        <button class="btn btn--primary" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          Terapkan
+        </button>
+        <a class="btn" href="/logs">Reset</a>
+      </div>
+    </form>
+  </div>
+</section>
+<section class="card">
+  <div class="card__head">
+    <h2>Auth log</h2>
+    <p class="card__hint" style="margin-left:auto"><span class="num"><%= total %></span> baris cocok</p>
+  </div>
+
+  <% if (!logs.length) { %>
+    <div class="card__body empty">
+      <svg class="icon" aria-hidden="true"><use href="#i-empty"></use></svg>
+      <h3>Tidak ada log</h3>
+      <p>Tidak ada baris yang cocok dengan filter ini. Longgarkan filter atau reset.</p>
+      <a class="btn" href="/logs">Reset filter</a>
+    </div>
+  <% } else { %>
+  <div class="table-wrap">
+    <table class="data stackable">
+      <thead>
+        <tr><th>Waktu</th><th>MAC</th><th>SSID</th><th>Controller</th><th>Hasil</th><th>Alasan</th></tr>
+      </thead>
+      <tbody>
+        <% logs.forEach(l => { %>
+        <tr>
+          <td data-label="Waktu" class="num"><%= fmt(l.created_at) %></td>
+          <td data-label="MAC" class="mono"><%= l.mac_address || '—' %></td>
+          <td data-label="SSID"><%= l.ssid_name || '—' %></td>
+          <td data-label="Controller"><%= l.controller_name || 'tidak dikenal' %></td>
+          <td data-label="Hasil">
+            <span class="badge badge--<%= l.result %>"><span class="dot" aria-hidden="true"></span><%= l.result %></span>
+          </td>
+          <td data-label="Alasan"><%= l.reason || '—' %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="card__body">
+    <div class="pager">
+      <span class="pager__info">Halaman <%= page %> dari <%= pages %></span>
+      <div class="btn-row">
+        <% if (page > 1) { %>
+        <a class="btn btn--sm" href="/logs<%= qs({ page: page - 1 }) %>">Sebelumnya</a>
+        <% } else { %>
+        <span class="btn btn--sm" aria-disabled="true">Sebelumnya</span>
+        <% } %>
+        <% if (page < pages) { %>
+        <a class="btn btn--sm" href="/logs<%= qs({ page: page + 1 }) %>">Berikutnya</a>
+        <% } else { %>
+        <span class="btn btn--sm" aria-disabled="true">Berikutnya</span>
+        <% } %>
+      </div>
+    </div>
+  </div>
+  <% } %>
+</section>
+
+<%- include('/partials/foot') %>

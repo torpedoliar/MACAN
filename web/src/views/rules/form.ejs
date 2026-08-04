@@ -1,0 +1,85 @@
+<%- include('/partials/head', { title: rule.id ? 'Edit MAC Rule' : 'Tambah MAC Rule' }) %>
+
+<section class="card" style="max-width:720px">
+  <div class="card__head">
+    <h2><%= rule.id ? 'Edit rule' : 'Rule baru' %></h2>
+    <div class="btn-row"><a class="btn btn--sm" href="/rules">Kembali</a></div>
+  </div>
+  <div class="card__body">
+    <% if (error) { %>
+    <div class="alert alert--danger" role="alert">
+      <svg class="icon" aria-hidden="true"><use href="#i-x-circle"></use></svg>
+      <div><%= error %></div>
+    </div>
+    <% } %>
+
+    <form action="/rules/<%= rule.id || '' %>" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="field__label" for="mac_address">MAC address<span class="field__req" aria-hidden="true">*</span></label>
+          <input type="text" id="mac_address" name="mac_address" required
+                 value="<%= rule.mac_address || '' %>" placeholder="aa:bb:cc:dd:ee:ff"
+                 autocapitalize="none" spellcheck="false" aria-describedby="mac-hint">
+          <span class="field__hint" id="mac-hint">12 karakter hex. Pemisah <code class="mono">:</code>, <code class="mono">-</code>, <code class="mono">.</code>, atau tanpa pemisah — semua dinormalkan.</span>
+        </div>
+        <div class="field">
+          <label class="field__label" for="ssid_name">SSID<span class="field__req" aria-hidden="true">*</span></label>
+          <input type="text" id="ssid_name" name="ssid_name" required
+                 value="<%= rule.ssid_name || '' %>" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="field__label" for="controller_id">Scope</label>
+          <select id="controller_id" name="controller_id" aria-describedby="scope-hint">
+            <option value="">Global — berlaku di semua controller</option>
+            <% controllers.forEach(c => { %>
+            <option value="<%= c.id %>" <%= String(rule.controller_id || '') === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
+            <% }) %>
+          </select>
+          <span class="field__hint" id="scope-hint">Rule khusus controller menang atas rule global untuk MAC + SSID yang sama.</span>
+        </div>
+        <div class="field">
+          <label class="field__label" for="status">Status<span class="field__req" aria-hidden="true">*</span></label>
+          <select id="status" name="status" required aria-describedby="status-hint">
+            <option value="allow" <%= (rule.status || 'allow') === 'allow' ? 'selected' : '' %>>Allow — izinkan</option>
+            <option value="deny" <%= rule.status === 'deny' ? 'selected' : '' %>>Deny — tolak</option>
+            <option value="disabled" <%= rule.status === 'disabled' ? 'selected' : '' %>>Disabled — nonaktif, ditolak</option>
+          </select>
+          <span class="field__hint" id="status-hint">Deny dan Disabled sama-sama ditolak; Disabled untuk mematikan sementara tanpa menghapus.</span>
+        </div>
+      </div>
+
+      <fieldset>
+        <legend>Keterangan (opsional)</legend>
+        <div class="grid-2">
+          <div class="field">
+            <label class="field__label" for="owner_name">Pemilik</label>
+            <input type="text" id="owner_name" name="owner_name" value="<%= rule.owner_name || '' %>">
+          </div>
+          <div class="field">
+            <label class="field__label" for="device_name">Perangkat</label>
+            <input type="text" id="device_name" name="device_name" value="<%= rule.device_name || '' %>">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label class="field__label" for="note">Catatan</label>
+          <textarea id="note" name="note"><%= rule.note || '' %></textarea>
+        </div>
+      </fieldset>
+
+      <div class="btn-row">
+        <button class="btn btn--primary" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+          Simpan
+        </button>
+        <a class="btn" href="/rules">Batal</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+<%- include('/partials/foot') %>
