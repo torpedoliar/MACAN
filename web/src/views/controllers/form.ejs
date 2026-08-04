@@ -23,11 +23,11 @@
                  maxlength="120" placeholder="UniFi Pusat">
         </div>
         <div class="field">
-          <label class="field__label" for="ip_address">IP address / CIDR<span class="field__req" aria-hidden="true">*</span></label>
+          <label class="field__label" for="ip_address">IP address<span class="field__req" aria-hidden="true">*</span></label>
           <input type="text" id="ip_address" name="ip_address" required
                  value="<%= controller.ip_address || '' %>" placeholder="192.168.1.10"
                  maxlength="45" spellcheck="false" aria-describedby="ip-hint">
-          <span class="field__hint" id="ip-hint">IP sumber request RADIUS. Boleh satu host (<code class="mono">192.168.1.10</code>) atau subnet (<code class="mono">192.168.1.0/24</code>).</span>
+          <span class="field__hint" id="ip-hint">IP sumber request RADIUS, satu host saja (<code class="mono">192.168.1.10</code>). Subnet tidak didukung — pencocokan harus persis.</span>
         </div>
       </div>
 

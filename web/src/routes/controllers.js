@@ -2,14 +2,13 @@ const express = require('express');
 const { query } = require('../db');
 const { writeAudit } = require('../audit');
 const { wrap } = require('../middleware');
+const { isHostIp } = require('../radius-policy');
 const router = express.Router();
 
 const clean = v => {
   const s = String(v === undefined || v === null ? '' : v).trim();
   return s === '' ? null : s;
 };
-// Accepts a bare IPv4 or CIDR — FreeRADIUS `nasname` takes both.
-const IP_RE = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
 
 router.get('/', wrap(async (req, res) => {
   const controllers = await query(`
@@ -38,7 +37,7 @@ async function save(req, res, id) {
     controller: { id, name, ip_address: ip, enabled, note }, error
   });
   if (!name) return rerender('Nama controller wajib diisi.');
-  if (!ip || !IP_RE.test(ip)) return rerender('IP address tidak valid. Contoh: 192.168.1.10 atau 192.168.1.0/24.');
+  if (!ip || !isHostIp(ip)) return rerender('IP address tidak valid. Harus satu host IPv4, contoh: 192.168.1.10 (subnet/CIDR tidak didukung).');
   if (!id && !secret) return rerender('Shared secret wajib diisi saat membuat controller baru.');
   if (secret && secret.length < 8) return rerender('Shared secret minimal 8 karakter.');
 

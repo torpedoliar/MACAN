@@ -36,13 +36,13 @@
   <div class="table-wrap">
     <table class="data stackable">
       <thead>
-        <tr><th>Nama</th><th>IP / CIDR</th><th>Status</th><th class="num">SSID</th><th class="num">Rule</th><th>Catatan</th><th class="actions">Aksi</th></tr>
+        <tr><th>Nama</th><th>IP address</th><th>Status</th><th class="num">SSID</th><th class="num">Rule</th><th>Catatan</th><th class="actions">Aksi</th></tr>
       </thead>
       <tbody>
         <% controllers.forEach(c => { %>
         <tr>
           <td data-label="Nama"><strong><%= c.name %></strong></td>
-          <td data-label="IP / CIDR" class="mono"><%= c.ip_address %></td>
+          <td data-label="IP address" class="mono"><%= c.ip_address %></td>
           <td data-label="Status">
             <span class="badge badge--<%= c.enabled ? 'on' : 'off' %>">
               <span class="dot" aria-hidden="true"></span><%= c.enabled ? 'aktif' : 'nonaktif' %>

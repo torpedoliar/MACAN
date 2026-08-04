@@ -2,7 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
-const { normalizeMac, parseSsid, chooseRule } = require('../src/radius-policy');
+const { normalizeMac, parseSsid, chooseRule, isHostIp } = require('../src/radius-policy');
 const { loginLockedFor, loginFailed, loginSucceeded, MAX_FAILS } = require('../src/middleware');
 
 assert.equal(normalizeMac('AA-BB-CC-DD-EE-FF'), 'aa:bb:cc:dd:ee:ff');
@@ -12,6 +12,26 @@ assert.equal(parseSsid('aa:bb:cc:dd:ee:ff:Office'), 'Office');
 assert.deepEqual(chooseRule({ status: 'deny' }, { status: 'allow' }), { result: 'reject', reason: 'rule deny' });
 assert.deepEqual(chooseRule(null, { status: 'allow' }), { result: 'accept', reason: 'rule allow' });
 assert.deepEqual(chooseRule(null, null), { result: 'reject', reason: 'rule tidak ditemukan' });
+
+// Tmp-Integer-0 holds the controller id from SQL. FreeRADIUS coerces an empty
+// result for an *integer* attribute to 0, never "". A `== ""` test is therefore
+// dead code: an unknown NAS falls through, every INSERT below carries
+// controller_id 0, and the FK rejects it (ERROR 1452) — the operator sees
+// "SSID disabled" with nothing at all in auth_logs.
+const policy = fs.readFileSync(path.join(__dirname, '..', '..', 'radius', 'default.conf'), 'utf8');
+assert.ok(!/Tmp-Integer-0\}"\s*==\s*""/.test(policy),
+  'default.conf: Tmp-Integer-0 dibandingkan dengan "" — hasil SQL kosong jadi 0, cabang itu mati');
+assert.ok(/"%\{control:Tmp-Integer-0\}"\s*==\s*"0"/.test(policy),
+  'default.conf: cabang "controller tidak dikenal" hilang');
+
+// Controller IP: host only. A CIDR row can never equal Packet-Src-IP-Address, so
+// accepting one would silently reject every packet from that subnet.
+assert.ok(isHostIp('192.168.1.10'));
+assert.ok(isHostIp('10.0.0.1'));
+assert.ok(!isHostIp('192.168.1.0/24'), 'CIDR diterima — tidak akan pernah cocok di policy');
+assert.ok(!isHostIp('999.1.1.1'), 'oktet di luar 0-255 diterima');
+assert.ok(!isHostIp('192.168.1'), 'IP tidak lengkap diterima');
+assert.ok(!isHostIp(''));
 
 // Login brake. Two buckets, so an attacker rotating X-Forwarded-For must still
 // trip the email bucket — that is the whole point of the second key and the part
