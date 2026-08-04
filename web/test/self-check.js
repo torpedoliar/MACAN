@@ -125,6 +125,20 @@ assert.ok(/DELETE FROM mac_rules/.test(groupsSrc) && /ssid_group_id = \?/.test(g
 assert.ok(/ssid_group_id\s*=\s*NULL/.test(rulesSrc),
   'rules.js: edit rule per-SSID tidak melepas ssid_group_id — syncGroup akan memakainya sebagai cetakan');
 
+// update.sh dipakai untuk tiap deploy, dan tiga kesalahannya semua merusak diam-
+// diam: `down`/`down -v` menghapus volume db_data; tanpa --no-deps Compose menilai
+// depends_on dan bisa merekreasi db; dijalankan pakai sudo, `git pull` menaruh
+// objek milik root di .git dan pull berikutnya gagal untuk pemilik repo.
+const updateSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'update.sh'), 'utf8');
+assert.ok(!/docker compose down/.test(updateSrc),
+  'update.sh: memanggil `docker compose down` — volume db_data ikut berisiko');
+assert.ok(/--no-deps/.test(updateSrc),
+  'update.sh: `up -d` tanpa --no-deps — Compose bisa merekreasi container db');
+assert.ok(/id -u.*=\s*0|\$\(id -u\)" = 0/.test(updateSrc),
+  'update.sh: tidak menolak root — sudo membuat .git berisi objek milik root');
+assert.ok(/\[ -r \.env \]/.test(updateSrc),
+  'update.sh: tidak memeriksa .env terbaca — compose gagal tanpa menyebut sebabnya');
+
 // A disabled admin must be filtered in SQL, not by a branch after the bcrypt
 // compare: the "enabled" check has to be part of the lookup so a revoked account
 // is indistinguishable from a nonexistent one, in both message and timing.

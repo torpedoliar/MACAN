@@ -5,10 +5,13 @@
 #   - container db tidak pernah di-stop, di-rebuild, atau dihapus
 #   - `down` dan `down -v` tidak pernah dipanggil, jadi volume db_data aman
 #   - backup harus berhasil sebelum apa pun diubah; gagal backup = batal
+#   - dijalankan sebagai pemilik repo, bukan root: tidak ada file baru milik root
 #
 # ponytail: sh POSIX, tanpa dependensi selain docker dan git. Tidak ada langkah
-# migrasi terpisah — web/src/migrate.js jalan sendiri saat container web start,
-# jadi kesiapannya cukup dibuktikan lewat /health.
+# migrasi terpisah — web/src/migrate.js jalan sendiri saat container web start
+# (app.js: migrate().then(ensureAdmin).then(listen)), jadi /health yang menjawab
+# 200 sekaligus membuktikan perubahan schema sudah diterapkan. Menambah `docker
+# compose exec web node -e migrate` di sini hanya akan menjalankannya dua kali.
 set -eu
 
 cd "$(dirname "$0")"
@@ -21,13 +24,34 @@ BACKUP_DIR=backups
 KEEP=10
 
 # --- prasyarat ---------------------------------------------------------------
+# Root ditolak, bukan diizinkan "biar aman": `git pull` sebagai root meninggalkan
+# objek milik root di .git, dan sejak itu pemilik repo tidak bisa pull lagi tanpa
+# sudo — tiap update memperdalam kerusakannya. Jalankan sebagai pemilik repo yang
+# ada di grup docker; kalau `docker compose` minta sudo, yang salah adalah hak
+# akses .env, bukan skrip ini.
+if [ "$(id -u)" = 0 ]; then
+  die 'jangan jalankan sebagai root/sudo. Jalankan sebagai pemilik repo: ./update.sh'
+fi
+
 command -v docker >/dev/null 2>&1 || die 'docker tidak ditemukan.'
 docker compose version >/dev/null 2>&1 \
   || die 'plugin "docker compose" tidak tersedia (butuh Compose v2).'
 command -v git >/dev/null 2>&1 || die 'git tidak ditemukan.'
 [ -f compose.yaml ] || die 'compose.yaml tidak ada — jalankan dari root proyek.'
 [ -f .env ] || die '.env tidak ada. Ini instalasi baru? Jalankan ./setup.sh.'
+# -r, bukan hanya -f: compose.yaml menginterpolasi ${DB_PASSWORD} dan kawan-kawan
+# dari .env, jadi .env yang tidak terbaca membuat setiap perintah compose gagal
+# dengan pesan yang tidak menyebut penyebabnya sama sekali.
+[ -r .env ] || die ".env tidak bisa dibaca oleh $(id -un). Perbaiki sekali:
+    sudo chown $(id -un):$(id -gn) .env && chmod 600 .env"
 [ -d .git ] || die 'bukan git clone — tidak ada yang bisa di-pull.'
+# Objek milik root di .git membuat pull berikutnya gagal. Deteksi sekarang, saat
+# masih satu perintah untuk dibereskan. head -n1, bukan find -quit: -quit hanya
+# ada di GNU find, sedangkan pipa yang ditutup head sudah menghentikan find.
+if [ -n "$(find .git ! -user "$(id -un)" 2>/dev/null | head -n 1)" ]; then
+  die "ada objek milik user lain di .git (sisa pernah dijalankan pakai sudo). Perbaiki:
+    sudo chown -R $(id -un):$(id -gn) .git"
+fi
 
 say ''
 rule
@@ -141,8 +165,14 @@ while [ "$i" -lt 60 ]; do
 done
 say ''
 if [ "$READY" != 1 ]; then
+  # Penyebab paling sering di titik ini adalah migrasi schema yang gagal: web
+  # memanggil migrate() sebelum listen(), jadi DDL yang error membuat container
+  # restart terus dan /health tidak pernah 200. Log-nya dicetak langsung supaya
+  # pesan SQL-nya terbaca tanpa perlu perintah kedua.
+  say 'Log terakhir container web:'
+  docker compose logs --tail 20 web 2>&1 || true
+  say ''
   say "Backup ada di: $FILE"
-  say 'Cek: docker compose logs --tail 50 web'
   die 'panel tidak menjawab /health setelah 120 detik.'
 fi
 say 'OK    /health menjawab 200'
