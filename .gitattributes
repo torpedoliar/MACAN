@@ -1,0 +1,6 @@
+# Skrip shell dan config yang dibaca di dalam container harus berakhiran LF.
+# CRLF membuat sh gagal dengan "\r: not found".
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.conf text eol=lf
+compose.yaml text eol=lf

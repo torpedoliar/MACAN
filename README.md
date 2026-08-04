@@ -70,10 +70,25 @@ Butuh Docker dan Docker Compose. Tidak perlu Node atau MariaDB di host.
 ```bash
 git clone https://github.com/torpedoliar/MACAN.git
 cd MACAN
-cp .env.example .env
+./setup.sh
 ```
 
-Isi `.env` — semua nilai wajib diganti:
+`setup.sh` memeriksa Docker, membuat `.env` dari template, **mengenerate
+`DB_PASSWORD`, `DB_ROOT_PASSWORD`, dan `SESSION_SECRET` secara acak**, lalu
+berhenti dan meminta kamu mengisi email serta password admin — dua nilai yang
+tidak bisa ditebak skrip. Jalankan lagi setelah mengisinya, dan skrip akan
+membangun serta menjalankan ketiga service, menunggu sampai panel menjawab.
+
+Aman dijalankan berulang: `.env` yang sudah ada tidak akan ditimpa.
+
+<details>
+<summary>Atau setup manual</summary>
+
+```bash
+cp .env.example .env
+# sunting .env, isi semua nilai "change-..."
+docker compose up -d --build
+```
 
 | Variabel | Isi |
 |---|---|
@@ -84,11 +99,7 @@ Isi `.env` — semua nilai wajib diganti:
 | `ADMIN_PASSWORD` | password admin pertama |
 | `COOKIE_SECURE` | `0` untuk HTTP, `1` **hanya** kalau di belakang HTTPS |
 
-Lalu jalankan:
-
-```bash
-docker compose up -d --build
-```
+</details>
 
 Buka `http://<ip-server>:880` dan login dengan `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 Skema database dan admin pertama dibuat otomatis saat boot pertama.
@@ -231,6 +242,7 @@ masa simpan, menutup sesi basi, dan mengirim notifikasi yang tertunda.
 
 ```
 compose.yaml              tiga service: db, web, radius
+setup.sh                  bootstrap: cek docker, buat .env, generate secret, up
 db/schema.sql             skema awal, dijalankan MariaDB saat boot pertama
 radius/
   Dockerfile              FreeRADIUS + tiga file config di bawah
