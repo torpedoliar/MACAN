@@ -58,10 +58,10 @@
         <input type="text" id="note" name="note" value="<%= controller.note || '' %>">
       </div>
 
-      <div class="alert alert--warning" role="note">
-        <svg class="icon" aria-hidden="true"><use href="#i-warning"></use></svg>
-        <div>Setelah disimpan, jalankan <code class="mono">docker compose restart radius</code>.
-          FreeRADIUS memuat daftar client hanya pada saat start.</div>
+      <div class="alert" role="note">
+        <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+        <div>Tidak perlu restart. Controller baru langsung dikenali pada paket pertama;
+          perubahan IP atau shared secret berlaku paling lama 5 menit.</div>
       </div>
 
       <div class="btn-row">

@@ -60,9 +60,14 @@ async function save(req, res, id) {
     if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) return rerender(`IP address ${ip} sudah dipakai controller lain.`);
     throw err;
   }
-  // FreeRADIUS reads rlm_sql clients once at startup, so a new/changed IP or
-  // secret is inert until the radius container restarts.
-  res.redirect('/controllers?notice=' + encodeURIComponent('Tersimpan. Jalankan "docker compose restart radius" agar controller ini dibaca FreeRADIUS.'));
+  // FreeRADIUS resolves clients dynamically now (radius/macan_clients.conf), so no
+  // restart is needed. A NEW controller works on its first packet; a changed IP or
+  // rotated secret takes up to the `lifetime` in radius/clients.conf (300s) because
+  // the old client entry is still cached until then.
+  res.redirect('/controllers?notice=' + encodeURIComponent(
+    id ? 'Tersimpan. Perubahan IP atau shared secret berlaku paling lama 5 menit, tanpa restart.'
+       : 'Tersimpan. Controller baru langsung dikenali pada paket pertama, tanpa restart.'
+  ));
 }
 
 router.post('/', wrap((req, res) => save(req, res, null)));
@@ -95,7 +100,7 @@ router.post('/:id/delete', wrap(async (req, res) => {
   }
   await query('DELETE FROM controllers WHERE id = ?', [id]);
   await writeAudit(req.session.admin.id, 'controller_delete', { id });
-  res.redirect('/controllers?notice=' + encodeURIComponent('Controller dihapus. Restart container radius agar perubahan terbaca.'));
+  res.redirect('/controllers?notice=' + encodeURIComponent('Controller dihapus. Paket dari IP itu ditolak paling lama 5 menit lagi.'));
 }));
 
 module.exports = router;

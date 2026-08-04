@@ -254,7 +254,8 @@ if command -v curl >/dev/null 2>&1; then
       say '                         auth 1812/udp, accounting 1813/udp'
       say '  3. Di UniFi         -> aktifkan MAC authentication di SSID'
       say '  4. Menu SSID        -> aktifkan SSID yang muncul otomatis'
-      say '  5. Setelah menambah controller: docker compose restart radius'
+      say '  Tanpa restart: controller baru dikenali pada paket pertama, perubahan'
+      say '  IP atau shared secret berlaku paling lama 5 menit.'
       rule
       exit 0
     fi

@@ -61,8 +61,8 @@
           <li>Periksa ringkasan perbandingan jumlah baris yang muncul setelah unggah.</li>
           <li>Ketik <code class="mono">GANTI</code> lalu tekan tombol konfirmasi. Baru pada langkah
             ini data lama dihapus.</li>
-          <li>Jalankan <code class="mono">docker compose restart radius</code> agar FreeRADIUS
-            membaca ulang daftar controller.</li>
+          <li>Tidak perlu restart. FreeRADIUS memakai daftar controller hasil restore paling lama
+            5 menit setelahnya.</li>
         </ol>
       </div>
     </div>

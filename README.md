@@ -184,8 +184,9 @@ controller. Karena itu kolom IP menerima dua bentuk:
 Baris host menang atas baris subnet yang memuatnya, jadi satu AP bisa diberi
 entri sendiri tanpa mengganggu entri subnet. Prefix `/8`–`/32`; shared secret
 berlaku untuk seluruh subnet yang didaftarkan, jadi pilih subnet sesempit
-mungkin. Setelah menambah/mengubah, jalankan `docker compose restart radius` —
-daftar client dibaca FreeRADIUS hanya saat start.
+mungkin. Tidak perlu restart: controller baru dikenali pada paket pertama, dan
+perubahan IP atau shared secret berlaku paling lama 5 menit (FreeRADIUS
+menyimpan entri client lama selama itu).
 
 **2. Buat RADIUS profile di UniFi.** *Settings → Profiles → RADIUS → Create New*:
 
@@ -205,9 +206,12 @@ Advanced → MAC Authentication*, pilih RADIUS profile tadi.
 otomatis di menu **SSID** dengan status **nonaktif** — ini disengaja. Aktifkan
 dulu sebelum ada MAC yang bisa lolos.
 
-> Setelah menambah atau mengubah controller, jalankan `docker compose restart radius`.
-> FreeRADIUS membaca daftar client sekali saat start, jadi controller baru belum
-> dikenali sampai di-restart.
+> Perubahan controller tidak butuh restart. FreeRADIUS mencari IP sumber yang belum
+> dikenal di tabel `controllers` per paket (`radius/macan_clients.conf`), lalu
+> menyimpan hasilnya 5 menit. Jadi: controller **baru** langsung jalan pada paket
+> pertama; ganti IP, ganti shared secret, nonaktifkan, atau hapus berlaku paling
+> lama 5 menit karena entri lama masih tersimpan. Butuh langsung? Dari dalam
+> container radius: `radmin -e "del client ipaddr <ip>"`.
 
 ---
 

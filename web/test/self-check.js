@@ -37,6 +37,33 @@ assert.equal(subnetMatch.length, 2,
 assert.equal((policy.match(/ORDER BY INSTR\(ip_address, '\/'\) ASC/g) || []).length, 2,
   'default.conf: urutan host-dulu-baru-subnet hilang');
 
+// Dynamic clients are what removed "docker compose restart radius" after a
+// controller change. Three things have to hold together or a controller silently
+// stops being able to authenticate:
+//  1. sql.conf must NOT read_clients — that caches the whole table at boot and
+//     the dynamic path never runs.
+//  2. macan_clients.conf must use the SAME host-or-subnet match as default.conf.
+//     If they diverge, an AP can be admitted with one row's secret and then
+//     evaluated against a different row's controller_id.
+//  3. Both files must be COPY'd into the image; the config is baked, not mounted.
+const clientsPolicy = fs.readFileSync(path.join(__dirname, '..', '..', 'radius', 'macan_clients.conf'), 'utf8');
+const sqlConf = fs.readFileSync(path.join(__dirname, '..', '..', 'radius', 'sql.conf'), 'utf8');
+const radiusDockerfile = fs.readFileSync(path.join(__dirname, '..', '..', 'radius', 'Dockerfile'), 'utf8');
+assert.ok(/^\s*read_clients = no\s*$/m.test(sqlConf),
+  'sql.conf: read_clients bukan no — daftar controller di-cache saat boot, dynamic client mati');
+assert.ok(/INSTR\(ip_address, '\/'\) > 0 AND INET_ATON/.test(clientsPolicy)
+  && /ORDER BY INSTR\(ip_address, '\/'\) ASC/.test(clientsPolicy),
+  'macan_clients.conf: pencocokan host/subnet tidak sama dengan default.conf');
+assert.ok(/enabled = 1/.test(clientsPolicy),
+  'macan_clients.conf: controller nonaktif masih bisa dapat secret');
+assert.ok(/dynamic_clients = macan_clients/.test(
+  fs.readFileSync(path.join(__dirname, '..', '..', 'radius', 'clients.conf'), 'utf8')),
+  'clients.conf: tidak ada blok dynamic_clients — FreeRADIUS akan tolak semua IP');
+for (const f of ['clients.conf', 'macan_clients.conf']) {
+  assert.ok(new RegExp(`COPY ${f}`).test(radiusDockerfile),
+    `radius/Dockerfile: ${f} tidak di-COPY — config tidak masuk image`);
+}
+
 assert.ok(isControllerIp('192.168.1.10'));
 assert.ok(isControllerIp('10.0.0.1'));
 assert.ok(isControllerIp('10.10.0.0/24'), 'subnet /24 ditolak — AP tidak akan bisa didaftarkan');

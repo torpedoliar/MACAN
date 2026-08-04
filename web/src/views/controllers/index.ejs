@@ -71,10 +71,11 @@
     </table>
   </div>
   <div class="card__body">
-    <div class="alert alert--warning" role="note" style="margin:0">
-      <svg class="icon" aria-hidden="true"><use href="#i-warning"></use></svg>
-      <div>FreeRADIUS membaca daftar controller hanya saat start. Setelah menambah, mengubah IP,
-        atau mengganti shared secret, jalankan <code class="mono">docker compose restart radius</code>.</div>
+    <div class="alert" role="note" style="margin:0">
+      <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+      <div>FreeRADIUS mengenali controller secara dinamis — tidak perlu restart. Controller baru
+        langsung dipakai pada paket pertama; perubahan IP atau shared secret berlaku paling lama
+        5 menit.</div>
     </div>
   </div>
   <% } %>
