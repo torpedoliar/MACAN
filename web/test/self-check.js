@@ -280,7 +280,7 @@ const RESERVED = ['settings', 'cache', 'filename', '_locals'];
 // throws at request time is what turned "after login" into a blank page before.
 const now = new Date().toISOString();
 const shell = { title: 'X', csrfToken: 'tok', currentPath: '/', admin: { id: 1, email: 'a@b.c' },
-                maintenance: true, pendingCount: 2 };
+                maintenance: true, pendingCount: 2, assetVer: 'test' };
 const CASES = {
   'login': { error: 'salah' },
   'error': { status: 404, message: 'nope' },

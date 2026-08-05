@@ -21,7 +21,11 @@ app.set('view options', { root: path.join(__dirname, 'views') });
 // Behind the compose port mapping / any reverse proxy: needed for secure cookies.
 app.set('trust proxy', 1);
 app.use(express.urlencoded({ extended: false }));
-app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
+// Cache-bust static assets: ?v=<mtime> changes whenever the file changes, so a
+// browser never serves stale CSS/JS after a deploy. mtime of public/ at boot.
+const fs = require('fs');
+app.locals.assetVer = String(fs.statSync(path.join(__dirname, '..', 'public')).mtimeMs).slice(0, 10);
+app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1y', immutable: true }));
 // Before session: a probe every few seconds would otherwise mint a session row
 // per hit. Unauthenticated on purpose — it leaks only up/down, which any port
 // scan already reveals. No version, no counts, no error text.
