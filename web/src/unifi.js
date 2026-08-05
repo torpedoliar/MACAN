@@ -72,25 +72,38 @@ async function syncController(ctrl) {
   if (!targets.length) targets = siteList;
   if (!targets.length) throw new Error(`tidak ada site di controller (cari: '${siteWanted}')`);
 
-  let synced = 0;
+  let synced = 0, skipped = 0;
   for (const site of targets) {
     const siteId = site.id || site._id;
     if (!siteId) continue;
     let offset = 0;
+    let fetched = 0, withName = 0, withHostname = 0, withDisplay = 0;
+    let sample = null;
     // Cap total pages so a runaway loop can't hammer a misbehaving controller.
     for (let page = 0; page < 100; page++) {
       const res = await apiGet(ctrl.unifi_host, `/sites/${encodeURIComponent(siteId)}/clients?limit=${PAGE_LIMIT}&offset=${offset}`,
         ctrl.unifi_api_key, ctrl.unifi_verify_tls);
       const clients = Array.isArray(res) ? res : (res.data || []);
+      if (!sample && clients[0]) sample = JSON.stringify(clients[0]).slice(0, 400);
       // Collect rows with a non-empty hostname: a client without a name carries
       // no identity value, and upserting NULL would overwrite a previously-known
       // hostname when UniFi momentarily returns an empty name (rename, API lag).
+      // Field fallback: integration v1 list clients resmi cuma `name`, tapi
+      // firmware/wrapper beda bisa expose `hostname`/`display_name` — fallback
+      // murah, tanpa biaya request.
       const rows = [];
       for (const c of clients) {
         const mac = normalizeMac(c.macAddress || c.mac || '');
-        const hostname = (c.name || c.hostname || '').slice(0, 160);
-        if (!mac || !hostname) continue;
-        rows.push([ctrl.id, mac, hostname]);
+        const name = (c.name || '').slice(0, 160);
+        const hostname = (c.hostname || '').slice(0, 160);
+        const displayName = (c.display_name || c.displayName || '').slice(0, 160);
+        if (name) withName++;
+        if (hostname) withHostname++;
+        if (displayName) withDisplay++;
+        const chosen = (name || hostname || displayName || '').slice(0, 160);
+        if (!mac) continue;
+        if (!chosen) { skipped++; continue; }
+        rows.push([ctrl.id, mac, chosen]);
       }
       // Bulk upsert in chunks — 1000 devices = 2 statements, not 1000 round-trips.
       // The per-row INSERT that was here before would contend with RADIUS queries
@@ -104,11 +117,15 @@ async function syncController(ctrl) {
         );
       }
       synced += rows.length;
+      fetched += clients.length;
       if (clients.length < PAGE_LIMIT) break;
       offset += PAGE_LIMIT;
     }
+    // Diagnostic per-site: kalau hostname kosong di UI, output ini tunjukkin
+    // kenapa — field mana yang terisi, berapa di-skip, sample client aktual.
+    console.error(`unifi sync ${ctrl.unifi_host} site=${siteId}: fetched=${fetched} name=${withName} hostname=${withHostname} displayName=${withDisplay} synced=${synced} skipped=${skipped} sample=${sample}`);
   }
-  return { sites: targets.length, clients: synced };
+  return { sites: targets.length, clients: synced, skipped };
 }
 
 // Sync every enabled controller that has UniFi creds. Per-controller try/catch:
@@ -119,18 +136,20 @@ async function syncAllControllers() {
     "SELECT id, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls FROM controllers WHERE enabled = 1 AND unifi_host IS NOT NULL AND unifi_api_key IS NOT NULL AND unifi_host <> '' AND unifi_api_key <> ''"
   );
   let lastErr = '';
-  let ok = 0;
+  let ok = 0, synced = 0, skipped = 0;
   for (const c of ctrls) {
     try {
-      await syncController(c);
+      const r = await syncController(c);
       ok++;
+      synced += r.clients;
+      skipped += r.skipped;
     } catch (err) {
       lastErr = `${new Date().toLocaleString('sv-SE')} ${c.unifi_host}: ${err.message}`;
     }
   }
   await query('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
     ['unifi_last_error', lastErr]);
-  return { controllers: ctrls.length, ok, error: lastErr };
+  return { controllers: ctrls.length, ok, synced, skipped, error: lastErr };
 }
 
 // Single MAC lookup. Used by routes that already have controller_id in scope.

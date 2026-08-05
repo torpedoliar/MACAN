@@ -165,7 +165,12 @@ router.post('/unifi-sync', verifyCsrf, wrap(async (req, res) => {
       res.redirect('/settings?error=' + encodeURIComponent(`Sync UniFi: ${r.ok}/${r.controllers} controller OK. Error: ${r.error}`));
     } else {
       await writeAudit(req.session.admin.id, 'unifi_sync_manual', { ok: r.ok, controllers: r.controllers });
-      res.redirect('/settings?saved=1&notice=' + encodeURIComponent(`Sync UniFi: ${r.ok}/${r.controllers} controller, hostname terbarukan.`));
+      const msg = r.synced > 0
+        ? `Sync UniFi: ${r.ok}/${r.controllers} controller, ${r.synced} hostname terbarukan.`
+        : r.skipped > 0
+          ? `Sync UniFi: ${r.ok}/${r.controllers} controller OK, tapi 0 hostname. ${r.skipped} client di-skip — device belum diberi nama / DHCP hostname kosong di UniFi.`
+          : `Sync UniFi: ${r.ok}/${r.controllers} controller OK, 0 client ditemukan.`;
+      res.redirect('/settings?saved=1&notice=' + encodeURIComponent(msg));
     }
   } catch (err) {
     res.redirect('/settings?error=' + encodeURIComponent(`Sync UniFi gagal: ${err.message}`));
