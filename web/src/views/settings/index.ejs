@@ -133,10 +133,37 @@
           Sync UniFi sekarang
         </button>
       </form>
+      <form action="/settings/unifi-test" method="POST">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+          Cek koneksi UniFi
+        </button>
+      </form>
     </div>
     <div class="btn-row" style="margin-top:var(--s2)">
       <span class="card__hint">Vendor terakhir dimuat: <%= cfg.oui_last_refresh || 'belum pernah' %></span>
     </div>
+    <% if (typeof unifiTest !== 'undefined' && unifiTest) { %>
+    <div id="unifi-test" style="margin-top:var(--s4)">
+      <% unifiTest.forEach(t => { %>
+      <div class="alert <%= t.ok ? 'alert--success' : 'alert--danger' %>" role="note" style="margin:0 0 var(--s2)">
+        <svg class="icon" aria-hidden="true"><use href="#<%= t.ok ? 'i-check' : 'i-x-circle' %>"></use></svg>
+        <div>
+          <strong><%= t.name %></strong> · <span class="mono"><%= t.host %></span>
+          <% if (!t.ok) { %><br>Gagal: <%= t.error %><% } else { %>
+          <br>Site terkonfigurasi: <span class="mono"><%= t.configured_site %></span>
+          <%= t.matched ? '✓ cocok' : '✗ tidak ditemukan — sync pakai semua site' %>
+          <br>Site tersedia: <% t.sites.forEach((s, i) => { %><span class="mono"><%= s.name %></span><% if (i < t.sites.length - 1) { %>, <% } %><% }) %>
+          <% } %>
+        </div>
+      </div>
+      <% }) %>
+      <% if (!unifiTest.length) { %>
+      <p class="card__hint">Tidak ada controller aktif dengan kredensial UniFi API. Isi Host UniFi + API key di <a href="/controllers">halaman Controller</a> dulu.</p>
+      <% } %>
+    </div>
+    <% } %>
   </div>
 </section>
 

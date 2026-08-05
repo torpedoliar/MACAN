@@ -140,4 +140,30 @@ async function getHostname(controllerId, mac) {
   return rows.length ? rows[0].hostname : null;
 }
 
-module.exports = { syncController, syncAllControllers, getHostname };
+// Probe every controller with UniFi creds: fetch /v1/sites only, no upsert.
+// Returns one entry per controller with status + the site names/IDs available,
+// so the admin can see what to put in the `unifi_site` field (UDM Pro Max often
+// has no site named "default" — its site name is whatever was set at adoption).
+async function testControllers() {
+  const ctrls = await query(
+    "SELECT id, name, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls FROM controllers WHERE enabled = 1 AND unifi_host IS NOT NULL AND unifi_api_key IS NOT NULL AND unifi_host <> '' AND unifi_api_key <> ''"
+  );
+  const out = [];
+  for (const c of ctrls) {
+    try {
+      const sites = await apiGet(c.unifi_host, '/sites', c.unifi_api_key, c.unifi_verify_tls);
+      const siteList = Array.isArray(sites) ? sites : (sites.data || []);
+      out.push({
+        name: c.name, host: c.unifi_host, ok: true,
+        sites: siteList.map(s => ({ name: s.name, id: s.id || s._id })),
+        configured_site: c.unifi_site || 'default',
+        matched: siteList.some(s => s.name === (c.unifi_site || 'default'))
+      });
+    } catch (err) {
+      out.push({ name: c.name, host: c.unifi_host, ok: false, error: err.message });
+    }
+  }
+  return out;
+}
+
+module.exports = { syncController, syncAllControllers, getHostname, testControllers };

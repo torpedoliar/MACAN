@@ -7,7 +7,7 @@ const { wrap, verifyCsrf } = require('../middleware');
 const { sendTest } = require('../notifications');
 const { setLogo, clearLogo, sniff, getLogo } = require('../logo');
 const { refreshOui } = require('../oui');
-const { syncAllControllers } = require('../unifi');
+const { syncAllControllers, testControllers } = require('../unifi');
 const router = express.Router();
 
 // Logo upload: temp file, parsed into memory then validated by magic byte.
@@ -46,7 +46,8 @@ router.get('/', wrap(async (req, res) => {
     errors: req.query.error ? [req.query.error] : [],
     saved: req.query.saved,
     tested: req.query.tested,
-    notice: req.query.notice
+    notice: req.query.notice,
+    unifiTest: req.session.unifiTest || null
   });
 }));
 
@@ -169,6 +170,11 @@ router.post('/unifi-sync', verifyCsrf, wrap(async (req, res) => {
   } catch (err) {
     res.redirect('/settings?error=' + encodeURIComponent(`Sync UniFi gagal: ${err.message}`));
   }
+}));
+
+router.post('/unifi-test', verifyCsrf, wrap(async (req, res) => {
+  req.session.unifiTest = await testControllers();
+  res.redirect('/settings#unifi-test');
 }));
 
 module.exports = router;
