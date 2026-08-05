@@ -54,31 +54,115 @@ function apiGet(host, path, apiKey, verifyTls) {
   });
 }
 
+// Classic controller API (cookie login). Endpoint prefix on UniFi OS:
+//   https://<host>/proxy/network/api/s/<site>/...
+// Login: POST /api/auth/login (UDM Pro/UCG path) → Set-Cookie session. Unlike
+// integration v1 this returns ALL configured clients (offline included), so it
+// fills the gap X-API-KEY leaves (online-only). Unofficial but stable surface.
+// ponytail: manual Set-Cookie parse, no cookie-jar dep. Cukup untuk 1 login + N
+// GET per sync; tough-cookie only if session refresh/expiry gets complex.
+function apiClassicLogin(host, username, password, verifyTls) {
+  return new Promise((resolve, reject) => {
+    let base;
+    try { base = new URL(host); }
+    catch { return reject(new Error('unifi_host URL tidak valid')); }
+    const full = new URL('/api/auth/login', base);
+    const isHttps = full.protocol === 'https:';
+    const lib = isHttps ? https : require('http');
+    const body = JSON.stringify({ username, password, remember: true });
+    const req = lib.request(full, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      timeout: TIMEOUT,
+      rejectUnauthorized: Boolean(verifyTls)
+    }, res => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        return reject(new Error(`login HTTP ${res.statusCode}`));
+      }
+      const cookies = (res.headers['set-cookie'] || []).map(c => c.split(';')[0]).filter(Boolean);
+      const csrf = res.headers['x-csrf-token'] || '';
+      res.resume();
+      if (!cookies.length) return reject(new Error('login tidak mengembalikan cookie'));
+      resolve({ cookies, csrf });
+    });
+    req.on('timeout', () => req.destroy(new Error('login timeout setelah 8s')));
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+// GET one classic endpoint with a session cookie. path includes /api/s/<site>/...
+// Retry-once on 401 handled by caller (syncControllerClassic) yang pegang credential
+// untuk re-login. ponytail: retry-once, no exponential backoff.
+function apiClassicGet(host, path, cookies, verifyTls) {
+  return new Promise((resolve, reject) => {
+    let base;
+    try { base = new URL(host); }
+    catch { return reject(new Error('unifi_host URL tidak valid')); }
+    const full = new URL('/proxy/network' + path, base);
+    const isHttps = full.protocol === 'https:';
+    const lib = isHttps ? https : require('http');
+    const req = lib.request(full, {
+      method: 'GET',
+      headers: { 'Cookie': cookies.join('; '), 'Accept': 'application/json' },
+      timeout: TIMEOUT,
+      rejectUnauthorized: Boolean(verifyTls)
+    }, res => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        const err = new Error(`HTTP ${res.statusCode}`);
+        err.statusCode = res.statusCode;
+        return reject(err);
+      }
+      const chunks = [];
+      let size = 0;
+      res.on('data', c => {
+        size += c.length;
+        if (size > MAX_BYTES) { res.destroy(); return reject(new Error('respons melebihi batas ukuran')); }
+        chunks.push(c);
+      });
+      res.on('end', () => {
+        const txt = Buffer.concat(chunks).toString('utf8');
+        try { resolve(JSON.parse(txt)); }
+        catch { reject(new Error('respons bukan JSON valid')); }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout setelah 8s')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 // Fetch all clients across all sites of one controller, upsert MAC->hostname.
 // Per-site pagination via offset+limit. Returns {sites, clients}. Throws on
 // auth/network failure — caller wraps in try/catch so one offline controller
 // doesn't abort the others.
 async function syncController(ctrl, known) {
-  if (!ctrl.unifi_host || !ctrl.unifi_api_key) {
-    throw new Error('unifi_host atau unifi_api_key kosong');
+  if (!ctrl.unifi_host) {
+    throw new Error('unifi_host kosong');
   }
-  const siteWanted = (ctrl.unifi_site || 'default').trim();
-  const sites = await apiGet(ctrl.unifi_host, '/sites', ctrl.unifi_api_key, ctrl.unifi_verify_tls);
-  const siteList = Array.isArray(sites) ? sites : (sites.data || []);
-  // Match by short name (e.g. 'default'); fall back to all sites if none matches,
-  // since a mistyped site name is a common config error and syncing nothing is
-  // worse than syncing extra.
-  let targets = siteList.filter(s => s.name === siteWanted);
-  if (!targets.length) targets = siteList;
-  if (!targets.length) throw new Error(`tidak ada site di controller (cari: '${siteWanted}')`);
+  // Integration v1 (X-API-KEY) untuk online client. Skip kalau tidak ada api_key
+  // — controller classic-only (user/pass) tetap dapat sync lewat classic tahap.
+  let synced = 0, skipped = 0, unknown = 0, targets = [];
+  if (ctrl.unifi_api_key) {
+    const siteWanted = (ctrl.unifi_site || 'default').trim();
+    const sites = await apiGet(ctrl.unifi_host, '/sites', ctrl.unifi_api_key, ctrl.unifi_verify_tls);
+    const siteList = Array.isArray(sites) ? sites : (sites.data || []);
+    // Match by short name (e.g. 'default'); fall back to all sites if none matches,
+    // since a mistyped site name is a common config error and syncing nothing is
+    // worse than syncing extra.
+    targets = siteList.filter(s => s.name === siteWanted);
+    if (!targets.length) targets = siteList;
+    if (!targets.length) throw new Error(`tidak ada site di controller (cari: '${siteWanted}')`);
+  }
 
-  let synced = 0, skipped = 0, unknown = 0;
+  let fetched = 0, withName = 0, withHostname = 0, withDisplay = 0, sample = null;
   for (const site of targets) {
     const siteId = site.id || site._id;
     if (!siteId) continue;
     let offset = 0;
-    let fetched = 0, withName = 0, withHostname = 0, withDisplay = 0;
-    let sample = null;
     // Cap total pages so a runaway loop can't hammer a misbehaving controller.
     for (let page = 0; page < 100; page++) {
       const res = await apiGet(ctrl.unifi_host, `/sites/${encodeURIComponent(siteId)}/clients?limit=${PAGE_LIMIT}&offset=${offset}`,
@@ -129,7 +213,69 @@ async function syncController(ctrl, known) {
     // kenapa — field mana yang terisi, berapa di-skip/unknown, sample client aktual.
     console.error(`unifi sync ${ctrl.unifi_host} site=${siteId}: fetched=${fetched} name=${withName} hostname=${withHostname} displayName=${withDisplay} synced=${synced} skipped=${skipped} unknown=${unknown} sample=${sample}`);
   }
-  return { sites: targets.length, clients: synced, skipped, unknown };
+  // Classic API (cookie login) untuk ambil semua configured client (offline
+  // included) — integration v1 cuma return online. Tahap terpisah supaya
+  // gagal classic tidak merusak sync online. Known-scope tetap: device_hosts
+  // hanya diisi MAC yg muncul di aplikasi.
+  let classic = { fetched: 0, synced: 0, skipped: 0, unknown: 0 };
+  if (ctrl.unifi_username && ctrl.unifi_password) {
+    try { classic = await syncControllerClassic(ctrl, known); }
+    catch (err) {
+      console.error(`unifi classic sync ${ctrl.unifi_host} gagal: ${err.message}`);
+    }
+  }
+  return {
+    sites: targets.length,
+    clients: synced + classic.synced,
+    skipped: skipped + classic.skipped,
+    unknown: unknown + classic.unknown,
+    classicFetched: classic.fetched,
+    classicSynced: classic.synced
+  };
+}
+
+// Classic API sync: login UniFi user/pass → fetch /rest/user (semua configured
+// client, offline included). Field hostname (DHCP/mDNS) || name (operator). Site
+// classic pakai short name (s.name), bukan UUID integration. Retry login sekali
+// kalau GET kena 401 (session expired). Throws on failure — caller try/catch.
+async function syncControllerClassic(ctrl, known) {
+  let session = await apiClassicLogin(ctrl.unifi_host, ctrl.unifi_username, ctrl.unifi_password, ctrl.unifi_verify_tls);
+  const siteName = (ctrl.unifi_site || 'default').trim();
+  const path = `/api/s/${encodeURIComponent(siteName)}/rest/user`;
+  let res;
+  try {
+    res = await apiClassicGet(ctrl.unifi_host, path, session.cookies, ctrl.unifi_verify_tls);
+  } catch (err) {
+    if (err.statusCode !== 401) throw err;
+    // ponytail: retry-once on 401. Classic session bisa expire antar login+
+    // GET kalau controller lambat; re-login sekali, bukan backoff.
+    session = await apiClassicLogin(ctrl.unifi_host, ctrl.unifi_username, ctrl.unifi_password, ctrl.unifi_verify_tls);
+    res = await apiClassicGet(ctrl.unifi_host, path, session.cookies, ctrl.unifi_verify_tls);
+  }
+  // Classic API return shape: { data: [...clients], meta: {...} }
+  const clients = Array.isArray(res) ? res : (res.data || []);
+  let fetched = 0, synced = 0, skipped = 0, unknown = 0;
+  const rows = [];
+  for (const c of clients) {
+    const mac = normalizeMac(c.mac || c.macAddress || '');
+    const hostname = (c.hostname || c.name || '').slice(0, 160);
+    fetched++;
+    if (!mac) continue;
+    if (!known.has(mac)) { unknown++; continue; }
+    if (!hostname) { skipped++; continue; }
+    rows.push([ctrl.id, mac, hostname]);
+  }
+  for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
+    const values = chunk.map(() => '(?, ?, ?)').join(', ');
+    await query(
+      `INSERT INTO device_hosts (controller_id, mac_address, hostname) VALUES ${values} ON DUPLICATE KEY UPDATE hostname = VALUES(hostname), last_sync = CURRENT_TIMESTAMP`,
+      chunk.flat()
+    );
+  }
+  synced += rows.length;
+  console.error(`unifi classic sync ${ctrl.unifi_host} site=${siteName}: fetched=${fetched} synced=${synced} skipped=${skipped} unknown=${unknown}`);
+  return { fetched, synced, skipped, unknown };
 }
 
 // Sync every enabled controller that has UniFi creds. Per-controller try/catch:
@@ -137,7 +283,7 @@ async function syncController(ctrl, known) {
 // refresh. Clears unifi_last_error only when all succeed.
 async function syncAllControllers() {
   const ctrls = await query(
-    "SELECT id, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls FROM controllers WHERE enabled = 1 AND unifi_host IS NOT NULL AND unifi_api_key IS NOT NULL AND unifi_host <> '' AND unifi_api_key <> ''"
+    "SELECT id, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls, unifi_username, unifi_password FROM controllers WHERE enabled = 1 AND unifi_host IS NOT NULL AND unifi_host <> '' AND ((unifi_api_key IS NOT NULL AND unifi_api_key <> '') OR (unifi_username IS NOT NULL AND unifi_username <> ''))"
   );
   // Known-MAC scope: upsert hostname hanya untuk MAC yang sudah muncul di
   // aplikasi — auth_logs (pernah auth, termasuk pending), sessions (online),

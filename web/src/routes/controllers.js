@@ -35,6 +35,8 @@ async function save(req, res, id) {
   const unifiHost = clean(req.body.unifi_host);
   const unifiSite = clean(req.body.unifi_site) || 'default';
   const unifiKey = clean(req.body.unifi_api_key);
+  const unifiUsername = clean(req.body.unifi_username);
+  const unifiPassword = clean(req.body.unifi_password);
   const unifiVerifyTls = req.body.unifi_verify_tls === 'on' || req.body.unifi_verify_tls === '1';
 
   const rerender = error => res.status(400).render('controllers/form', {
@@ -54,12 +56,14 @@ async function save(req, res, id) {
       const params = [name, ip, enabled, note, unifiHost, unifiSite, unifiVerifyTls];
       if (secret) { sets.splice(2, 0, 'shared_secret=?'); params.splice(2, 0, secret); }
       if (unifiKey) { sets.push('unifi_api_key=?'); params.push(unifiKey); }
+      if (unifiUsername) { sets.push('unifi_username=?'); params.push(unifiUsername); }
+      if (unifiPassword) { sets.push('unifi_password=?'); params.push(unifiPassword); }
       params.push(id);
       await query(`UPDATE controllers SET ${sets.join(', ')} WHERE id=?`, params);
-      await writeAudit(req.session.admin.id, 'controller_update', { id, name, ip_address: ip, secret_changed: Boolean(secret), unifi_key_changed: Boolean(unifiKey) });
+      await writeAudit(req.session.admin.id, 'controller_update', { id, name, ip_address: ip, secret_changed: Boolean(secret), unifi_key_changed: Boolean(unifiKey), unifi_user_changed: Boolean(unifiUsername || unifiPassword) });
     } else {
-      await query('INSERT INTO controllers (name, ip_address, shared_secret, enabled, note, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [name, ip, secret, enabled, note, unifiHost, unifiSite, unifiKey, unifiVerifyTls]);
+      await query('INSERT INTO controllers (name, ip_address, shared_secret, enabled, note, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls, unifi_username, unifi_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [name, ip, secret, enabled, note, unifiHost, unifiSite, unifiKey, unifiVerifyTls, unifiUsername, unifiPassword]);
       await writeAudit(req.session.admin.id, 'controller_create', { name, ip_address: ip });
     }
   } catch (err) {

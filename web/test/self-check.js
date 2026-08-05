@@ -209,7 +209,7 @@ for (const file of files) {
 // the browser stops it first, so every free-text field that lands in a VARCHAR
 // must carry maxlength — and it must match the column, not merely exist.
 const MAXLEN = {
-  'controllers/form': { name: 120, ip_address: 45, shared_secret: 255, note: 65535, unifi_host: 255, unifi_site: 64, unifi_api_key: 255 },
+  'controllers/form': { name: 120, ip_address: 45, shared_secret: 255, note: 65535, unifi_host: 255, unifi_site: 64, unifi_api_key: 255, unifi_username: 160, unifi_password: 255 },
   'rules/form': { mac_address: 17, ssid_name: 128, owner_name: 160, device_name: 160 },
   'ssids/index': { ssid_name: 128 },
   'admins/form': { email: 255, password: 255 }

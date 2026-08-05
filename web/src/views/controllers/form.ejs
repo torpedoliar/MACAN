@@ -80,13 +80,30 @@
           </div>
         </div>
         <div class="field">
-          <label class="field__label" for="unifi_api_key">API key</label>
+          <label class="field__label" for="unifi_api_key">API key (integration v1)</label>
           <input type="password" id="unifi_api_key" name="unifi_api_key" autocomplete="new-password"
                  maxlength="255" aria-describedby="unifi-key-hint"
                  placeholder="<%= controller.id && controller.unifi_api_key ? 'Tersimpan — kosongkan bila tidak diganti' : 'X-API-KEY dari Integrations' %>">
           <span class="field__hint" id="unifi-key-hint">
-            <% if (controller.id && controller.unifi_api_key) { %>Kosongkan untuk mempertahankan key yang sekarang.<% } else { %>Header <code class="mono">X-API-KEY</code>, bukan login user/password.<% } %>
+            <% if (controller.id && controller.unifi_api_key) { %>Kosongkan untuk mempertahankan key yang sekarang.<% } else { %>Header <code class="mono">X-API-KEY</code> — ambil client <strong>online</strong> saja.<% } %>
           </span>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label class="field__label" for="unifi_username">Username UniFi (classic)</label>
+            <input type="text" id="unifi_username" name="unifi_username"
+                   value="<%= controller.unifi_username || '' %>" maxlength="160"
+                   placeholder="akun read-only" autocomplete="username" spellcheck="false">
+          </div>
+          <div class="field">
+            <label class="field__label" for="unifi_password">Password UniFi (classic)</label>
+            <input type="password" id="unifi_password" name="unifi_password" autocomplete="new-password"
+                   maxlength="255" aria-describedby="unifi-pass-hint"
+                   placeholder="<%= controller.id && controller.unifi_password ? 'Tersimpan — kosongkan bila tidak diganti' : 'password akun UniFi' %>">
+            <span class="field__hint" id="unifi-pass-hint">
+              Login user/password untuk ambil <strong>semua device configured</strong> (offline included) lewat classic API. Pakai akun read-only kalau ada; kosongkan kalau cuma pakai API key.
+            </span>
+          </div>
         </div>
         <label class="check" for="unifi_verify_tls">
           <input type="checkbox" id="unifi_verify_tls" name="unifi_verify_tls" value="1"

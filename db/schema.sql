@@ -21,6 +21,11 @@ CREATE TABLE controllers (
   unifi_site VARCHAR(64) NULL DEFAULT 'default',
   unifi_api_key VARCHAR(255) NULL,
   unifi_verify_tls BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Classic API (cookie login) untuk ambil semua configured client (offline
+  -- included). Integration v1 (X-API-KEY) cuma return online. User/pass UniFi
+  -- disimpan plaintext — sama kayak unifi_api_key/shared_secret, masking di UI.
+  unifi_username VARCHAR(160) NULL,
+  unifi_password VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

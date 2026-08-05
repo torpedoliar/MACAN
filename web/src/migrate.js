@@ -125,6 +125,11 @@ async function migrate() {
   await raw('ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_api_key VARCHAR(255) NULL AFTER unifi_site');
   await raw('ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_verify_tls BOOLEAN NOT NULL DEFAULT FALSE AFTER unifi_api_key');
 
+  // 14. Classic API (cookie login UniFi) untuk ambil semua configured client
+  //     (offline included). Integration v1 (X-API-KEY) cuma return online.
+  await raw('ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_username VARCHAR(160) NULL AFTER unifi_verify_tls');
+  await raw('ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_password VARCHAR(255) NULL AFTER unifi_username');
+
   // 9. Grup SSID. Rule yang menargetkan grup tetap disimpan sebagai satu baris
   //    mac_rules per anggota grup, jadi radius/default.conf tidak berubah sama
   //    sekali: lookup-nya tetap satu SELECT per (mac_address, ssid_name) dan tetap
