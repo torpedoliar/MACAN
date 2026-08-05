@@ -209,7 +209,7 @@ for (const file of files) {
 // the browser stops it first, so every free-text field that lands in a VARCHAR
 // must carry maxlength — and it must match the column, not merely exist.
 const MAXLEN = {
-  'controllers/form': { name: 120, ip_address: 45, shared_secret: 255, note: 65535 },
+  'controllers/form': { name: 120, ip_address: 45, shared_secret: 255, note: 65535, unifi_host: 255, unifi_site: 64, unifi_api_key: 255 },
   'rules/form': { mac_address: 17, ssid_name: 128, owner_name: 160, device_name: 160 },
   'ssids/index': { ssid_name: 128 },
   'admins/form': { email: 255, password: 255 }
@@ -280,7 +280,8 @@ const RESERVED = ['settings', 'cache', 'filename', '_locals'];
 // throws at request time is what turned "after login" into a blank page before.
 const now = new Date().toISOString();
 const shell = { title: 'X', csrfToken: 'tok', currentPath: '/', admin: { id: 1, email: 'a@b.c' },
-                maintenance: true, pendingCount: 2, assetVer: 'test', hasLogo: false };
+                maintenance: true, pendingCount: 2, assetVer: 'test', hasLogo: false,
+                vendorOf: () => 'Test Vendor' };
 const CASES = {
   'login': { error: 'salah' },
   'error': { status: 404, message: 'nope' },
@@ -289,12 +290,13 @@ const CASES = {
              controllers: 1, controllersEnabled: 1, ssids: 2, ssidsEnabled: 1, accepts24: 5, rejects24: 1 },
     chart: [{ label: '01:00', accepts: 2, rejects: 1 }, { label: '02:00', accepts: 0, rejects: 0 }],
     recent: [{ created_at: now, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S',
-               controller_name: 'C', result: 'accept', reason: 'rule allow' }]
+               controller_name: 'C', result: 'accept', reason: 'rule allow', hostname: null }]
   },
   'rules/index': {
     rules: [{ id: 1, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: null,
               controller_name: null, status: 'allow', owner_name: 'B', device_name: 'D',
-              note: 'n', updated_at: now, last_seen_at: now, ssid_group_id: 1, group_name: 'Karyawan' }],
+              note: 'n', updated_at: now, last_seen_at: now, ssid_group_id: 1, group_name: 'Karyawan',
+              hostname: null }],
     controllers: [{ id: 1, name: 'C' }], filters: { q: '', status: '', controller_id: '' },
     imported: '3', skipped: '1', error: 'e'
   },
@@ -302,7 +304,7 @@ const CASES = {
                   groups: [{ id: 1, name: 'Karyawan', member_count: 2 }], error: 'e' },
   'approvals/index': {
     pending: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
-                controller_name: 'C', last_seen: now, hit_count: 3 }],
+                controller_name: 'C', last_seen: now, hit_count: 3, hostname: null }],
     error: 'e', approved: '1'
   },
   'controllers/index': {
@@ -323,7 +325,7 @@ const CASES = {
   },
   'logs/index': {
     logs: [{ created_at: now, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S',
-             controller_name: 'C', result: 'reject', reason: 'r' }],
+             controller_name: 'C', result: 'reject', reason: 'r', hostname: null }],
     controllers: [{ id: 1, name: 'C' }], total: 1, page: 2, pages: 3,
     filters: { mac: '', ssid: '', result: '', controller_id: '', from: '', to: '' }
   },
@@ -331,13 +333,13 @@ const CASES = {
     sessions: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_name: 'C',
                  session_id: 'sid', started_at: now, last_update_at: now, stopped_at: null,
                  duration_seconds: 4000, is_online: 1,
-                 owner_name: 'Budi', device_name: 'Laptop', rule_status: 'allow' },
+                 owner_name: 'Budi', device_name: 'Laptop', rule_status: 'allow', hostname: null },
                // Session with no matching rule: the identity join returns NULLs and
                // the view must fall back instead of printing "null".
                { mac_address: 'aa:bb:cc:dd:ee:00', ssid_name: 'S', controller_name: null,
                  session_id: 'sid2', started_at: now, last_update_at: now, stopped_at: now,
                  duration_seconds: 10, is_online: 0,
-                 owner_name: null, device_name: null, rule_status: null }],
+                 owner_name: null, device_name: null, rule_status: null, hostname: null }],
     timeout: 120, show: 'all'
   },
   'admins/index': {
@@ -356,11 +358,12 @@ const CASES = {
     cfg: { auth_log_retention_days: '90', online_session_timeout_minutes: '120',
            reject_spike_count: '5', reject_spike_window_minutes: '10',
            notification_dedupe_minutes: '60', notification_webhook_url: '',
-           telegram_bot_token: '', telegram_chat_id: '', maintenance_mode: '1' },
-    hasSecret: { telegram_bot_token: true }, hasLogo: false, errors: ['e'], saved: '1', tested: 'ok'
+           telegram_bot_token: '', telegram_chat_id: '', maintenance_mode: '1',
+           oui_last_refresh: '', unifi_sync_enabled: '0', unifi_last_error: '' },
+    hasSecret: { telegram_bot_token: true }, hasLogo: false, errors: ['e'], saved: '1', tested: 'ok', notice: ''
   },
   'data/index': {
-    counts: { controllers: 1, ssids: 2, ssid_groups: 1, ssid_group_members: 2, mac_rules: 3, settings: 9 },
+    counts: { controllers: 1, ssids: 2, ssid_groups: 1, ssid_group_members: 2, mac_rules: 3, device_hosts: 5, settings: 12 },
     staged: { generated_at: now, rows: [{ table: 'controllers', incoming: 1, current: 1 }] },
     error: 'e', notice: 'n'
   }

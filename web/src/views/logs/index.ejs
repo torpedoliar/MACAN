@@ -72,13 +72,18 @@
   <div class="table-wrap">
     <table class="data stackable">
       <thead>
-        <tr><th>Waktu</th><th>MAC</th><th>SSID</th><th>Controller</th><th>Hasil</th><th>Alasan</th></tr>
+        <tr><th>Waktu</th><th>MAC</th><th>Device</th><th>SSID</th><th>Controller</th><th>Hasil</th><th>Alasan</th></tr>
       </thead>
       <tbody>
         <% logs.forEach(l => { %>
         <tr>
           <td data-label="Waktu" class="num"><%= fmt(l.created_at) %></td>
           <td data-label="MAC" class="mono"><%= l.mac_address || '—' %></td>
+          <td data-label="Device">
+            <% const lv = vendorOf(l.mac_address); %>
+            <% if (l.hostname) { %><span><%= l.hostname %></span><% if (lv) { %><br><% } %><% } %>
+            <% if (lv) { %><span class="card__hint"><%= lv %></span><% } else if (!l.hostname) { %>—<% } %>
+          </td>
           <td data-label="SSID"><%= l.ssid_name || '—' %></td>
           <td data-label="Controller"><%= l.controller_name || 'tidak dikenal' %></td>
           <td data-label="Hasil">

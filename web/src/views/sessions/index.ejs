@@ -57,14 +57,17 @@
             <% } %>
           </td>
           <td data-label="Pengguna">
-            <% if (s.owner_name || s.device_name) { %>
-            <strong><%= s.owner_name || '—' %></strong>
-            <% if (s.device_name) { %><span class="card__hint"><%= s.device_name %></span><% } %>
+            <% if (s.owner_name || s.device_name || s.hostname) { %>
+            <strong><%= s.owner_name || s.hostname || '—' %></strong>
+            <% if (s.device_name) { %><span class="card__hint"><%= s.device_name %></span><% } else if (s.hostname && s.owner_name) { %><span class="card__hint"><%= s.hostname %></span><% } %>
             <% } else { %>
             <span class="badge badge--disabled">tanpa rule</span>
             <% } %>
           </td>
-          <td data-label="MAC" class="mono"><%= s.mac_address %></td>
+          <td data-label="MAC" class="mono">
+            <%= s.mac_address %>
+            <% const sv = vendorOf(s.mac_address); if (sv) { %><br><span class="card__hint"><%= sv %></span><% } %>
+          </td>
           <td data-label="SSID"><%= s.ssid_name || '—' %></td>
           <td data-label="Controller"><%= s.controller_name || 'tidak dikenal' %></td>
           <td data-label="Session ID" class="mono"><%= s.session_id %></td>

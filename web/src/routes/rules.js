@@ -55,10 +55,11 @@ router.get('/', wrap(async (req, res) => {
     params.push(controller_id);
   }
   const rules = await query(`
-    SELECT r.*, c.name AS controller_name, g.name AS group_name
+    SELECT r.*, c.name AS controller_name, g.name AS group_name, h.hostname
     FROM mac_rules r
     LEFT JOIN controllers c ON r.controller_id = c.id
     LEFT JOIN ssid_groups g ON r.ssid_group_id = g.id
+    LEFT JOIN device_hosts h ON h.controller_id = r.controller_id AND h.mac_address = r.mac_address
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ORDER BY r.updated_at DESC
     LIMIT 500

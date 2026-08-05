@@ -15,6 +15,12 @@ CREATE TABLE controllers (
   shared_secret VARCHAR(255) NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   note TEXT NULL,
+  -- UniFi Controller REST API (integration v1, X-API-KEY). ip_address is the
+  -- RADIUS source (often a CIDR of APs), not the API host, so it can't be reused.
+  unifi_host VARCHAR(255) NULL,
+  unifi_site VARCHAR(64) NULL DEFAULT 'default',
+  unifi_api_key VARCHAR(255) NULL,
+  unifi_verify_tls BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -161,6 +167,29 @@ CREATE TABLE notification_log (
   KEY idx_notif_key (event_key, sent_at)
 );
 
+-- OUI vendor lookup. 6-hex prefix (no separator) -> vendor name. Refreshed
+-- monthly from the IEEE OUI file; refetchable reference data, excluded from
+-- backup so it doesn't bloat every export by megabytes.
+CREATE TABLE oui_vendors (
+  oui CHAR(6) PRIMARY KEY,
+  vendor VARCHAR(160) NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Hostname cache from UniFi Controller API. Additive — never overwrites
+-- mac_rules.owner_name/device_name (operator-typed). PK on controller+MAC so a
+-- device seen on two controllers keeps both rows; FK CASCADE so deleting a
+-- controller clears its stale hostnames.
+CREATE TABLE device_hosts (
+  controller_id BIGINT NOT NULL,
+  mac_address CHAR(17) NOT NULL,
+  hostname VARCHAR(160) NULL,
+  last_sync TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (controller_id, mac_address),
+  KEY idx_device_hosts_mac (mac_address),
+  CONSTRAINT fk_device_hosts_controller FOREIGN KEY (controller_id) REFERENCES controllers(id) ON DELETE CASCADE
+);
+
 INSERT INTO settings (name, value) VALUES
 ('auth_log_retention_days', '90'),
 ('online_session_timeout_minutes', '120'),
@@ -172,4 +201,7 @@ INSERT INTO settings (name, value) VALUES
 ('telegram_chat_id', ''),
 ('notification_dedupe_minutes', '60'),
 ('notification_last_error', ''),
-('maintenance_mode', '0');
+('maintenance_mode', '0'),
+('oui_last_refresh', ''),
+('unifi_sync_enabled', '0'),
+('unifi_last_error', '');

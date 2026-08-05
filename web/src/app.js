@@ -8,6 +8,7 @@ const { migrate } = require('./migrate');
 const { writeAudit, auditContext } = require('./audit');
 const { pendingCount } = require('./pending');
 const { loadLogo, getLogo } = require('./logo');
+const { loadVendors, vendorOf } = require('./oui');
 const { MysqlStore, csrf, maintenanceGuard, wrap, errorHandler,
         loginLockedFor, loginFailed, loginSucceeded } = require('./middleware');
 const { pool } = require('./db');
@@ -59,6 +60,7 @@ app.use((req, res, next) => {
   res.locals.maintenance = false;
   res.locals.pendingCount = 0;
   res.locals.hasLogo = Boolean(getLogo());
+  res.locals.vendorOf = vendorOf;
   next();
 });
 app.use(maintenanceGuard);
@@ -151,6 +153,7 @@ const PORT = parseInt(process.env.PORT, 10) || 880;
 migrate()
   .then(ensureAdmin)
   .then(loadLogo)
+  .then(loadVendors)
   .then(() => {
     require('./cron');
     const server = app.listen(PORT, () => console.log(`MACan web listening on ${PORT}`));

@@ -49,8 +49,9 @@ router.get('/', wrap(async (req, res) => {
   }
 
   const recent = await query(`
-    SELECT a.*, c.name AS controller_name
+    SELECT a.*, c.name AS controller_name, h.hostname
     FROM auth_logs a LEFT JOIN controllers c ON a.controller_id = c.id
+    LEFT JOIN device_hosts h ON h.controller_id = a.controller_id AND h.mac_address = a.mac_address
     ORDER BY a.created_at DESC LIMIT 10
   `);
 

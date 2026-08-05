@@ -80,7 +80,10 @@ async function migrate() {
     telegram_chat_id: '',
     notification_dedupe_minutes: '60',
     notification_last_error: '',
-    maintenance_mode: '0'
+    maintenance_mode: '0',
+    oui_last_refresh: '',
+    unifi_sync_enabled: '0',
+    unifi_last_error: ''
   };
   for (const [name, value] of Object.entries(defaults)) {
     await query('INSERT IGNORE INTO settings (name, value) VALUES (?, ?)', [name, value]);
@@ -90,6 +93,37 @@ async function migrate() {
   //    free; no volume mount needed). TEXT caps ~48KB binary after base64, too
   //    tight for a 2MB upload — widen value to MEDIUMTEXT (16MB). Idempotent.
   await raw('ALTER TABLE settings MODIFY COLUMN value MEDIUMTEXT NOT NULL');
+
+  // 11. OUI vendor lookup table — refetchable reference data, excluded from
+  //     backup. Monthly refresh from IEEE; guard oui_last_refresh prevents a
+  //     redownload on every boot (runCron fires once at require time).
+  await raw(`CREATE TABLE IF NOT EXISTS oui_vendors (
+    oui CHAR(6) PRIMARY KEY,
+    vendor VARCHAR(160) NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`);
+
+  // 12. UniFi hostname cache. Additive to mac_rules identity — operators type
+  //     owner_name/device_name deliberately; this is machine-derived. PK on
+  //     controller+MAC so a device on two controllers keeps both rows.
+  await raw(`CREATE TABLE IF NOT EXISTS device_hosts (
+    controller_id BIGINT NOT NULL,
+    mac_address CHAR(17) NOT NULL,
+    hostname VARCHAR(160) NULL,
+    last_sync TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (controller_id, mac_address),
+    KEY idx_device_hosts_mac (mac_address),
+    CONSTRAINT fk_device_hosts_controller FOREIGN KEY (controller_id) REFERENCES controllers(id) ON DELETE CASCADE
+  )`);
+
+  // 13. UniFi Controller REST API credentials. ip_address is the RADIUS source
+  //     (often a CIDR of APs), not the API host, so it can't be reused. API key
+  //     is plaintext — FreeRADIUS reads shared_secret the same way; masking is
+  //     at the UI layer only.
+  await raw('ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_host VARCHAR(255) NULL AFTER note');
+  await raw("ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_site VARCHAR(64) NULL DEFAULT 'default' AFTER unifi_host");
+  await raw('ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_api_key VARCHAR(255) NULL AFTER unifi_site');
+  await raw('ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_verify_tls BOOLEAN NOT NULL DEFAULT FALSE AFTER unifi_api_key');
 
   // 9. Grup SSID. Rule yang menargetkan grup tetap disimpan sebagai satu baris
   //    mac_rules per anggota grup, jadi radius/default.conf tidak berubah sama

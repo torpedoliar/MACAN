@@ -38,12 +38,17 @@
   <div class="table-wrap">
     <table class="data stackable">
       <thead>
-        <tr><th>MAC</th><th>SSID</th><th>Controller</th><th class="num">Percobaan</th><th>Terakhir</th><th class="actions">Keputusan</th></tr>
+        <tr><th>MAC</th><th>Device</th><th>SSID</th><th>Controller</th><th class="num">Percobaan</th><th>Terakhir</th><th class="actions">Keputusan</th></tr>
       </thead>
       <tbody>
         <% pending.forEach(p => { %>
         <tr>
           <td data-label="MAC" class="mono"><%= p.mac_address %></td>
+          <td data-label="Device">
+            <% const vendor = vendorOf(p.mac_address); %>
+            <% if (p.hostname) { %><span><%= p.hostname %></span><br><% } %>
+            <% if (vendor) { %><span class="card__hint"><%= vendor %></span><% } else if (!p.hostname) { %>—<% } %>
+          </td>
           <td data-label="SSID"><%= p.ssid_name %></td>
           <td data-label="Controller">
             <% if (p.controller_id) { %><%= p.controller_name || ('#' + p.controller_id) %>
@@ -61,6 +66,7 @@
               <input type="hidden" name="controller_id" value="<%= p.controller_id || '' %>">
               <input type="hidden" name="scope" value="<%= p.controller_id ? 'controller' : 'global' %>">
               <input type="hidden" name="status" value="<%= decision %>">
+              <% if (p.hostname) { %><input type="hidden" name="device_name" value="<%= p.hostname %>"><% } %>
               <button class="btn btn--sm <%= decision === 'allow' ? 'btn--primary' : 'btn--danger' %>" type="submit">
                 <svg class="icon" aria-hidden="true"><use href="#<%= decision === 'allow' ? 'i-check' : 'i-x-circle' %>"></use></svg>
                 <%= decision === 'allow' ? 'Allow' : 'Deny' %>

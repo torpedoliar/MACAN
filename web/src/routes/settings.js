@@ -6,6 +6,7 @@ const { writeAudit } = require('../audit');
 const { wrap, verifyCsrf } = require('../middleware');
 const { sendTest } = require('../notifications');
 const { setLogo, clearLogo, sniff, getLogo } = require('../logo');
+const { refreshOui } = require('../oui');
 const router = express.Router();
 
 // Logo upload: temp file, parsed into memory then validated by magic byte.
@@ -43,7 +44,8 @@ router.get('/', wrap(async (req, res) => {
     hasLogo: Boolean(getLogo()),
     errors: req.query.error ? [req.query.error] : [],
     saved: req.query.saved,
-    tested: req.query.tested
+    tested: req.query.tested,
+    notice: req.query.notice
   });
 }));
 
@@ -82,6 +84,10 @@ router.post('/', wrap(async (req, res) => {
 
   if (req.body.maintenance_mode !== undefined) {
     updates.push(['maintenance_mode', req.body.maintenance_mode === '1' ? '1' : '0']);
+  }
+
+  if (req.body.unifi_sync_enabled !== undefined) {
+    updates.push(['unifi_sync_enabled', req.body.unifi_sync_enabled === '1' ? '1' : '0']);
   }
 
   if (errors.length) {
@@ -138,6 +144,16 @@ router.post('/logo/delete', verifyCsrf, wrap(async (req, res) => {
   clearLogo();
   await writeAudit(req.session.admin.id, 'logo_delete', {});
   res.redirect('/settings?saved=1');
+}));
+
+router.post('/oui-refresh', verifyCsrf, wrap(async (req, res) => {
+  try {
+    const r = await refreshOui();
+    await writeAudit(req.session.admin.id, 'oui_refresh', { vendors: r.total });
+    res.redirect('/settings?saved=1&notice=' + encodeURIComponent(`OUI: ${r.total} vendor termuat.`));
+  } catch (err) {
+    res.redirect('/settings?error=' + encodeURIComponent(`OUI refresh gagal: ${err.message}`));
+  }
 }));
 
 module.exports = router;

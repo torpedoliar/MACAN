@@ -122,13 +122,18 @@
     <div class="table-wrap">
       <table class="data stackable">
         <thead>
-          <tr><th>Waktu</th><th>MAC</th><th>SSID</th><th>Hasil</th><th>Alasan</th></tr>
+          <tr><th>Waktu</th><th>MAC</th><th>Device</th><th>SSID</th><th>Hasil</th><th>Alasan</th></tr>
         </thead>
         <tbody>
           <% recent.forEach(r => { %>
           <tr>
             <td data-label="Waktu" class="num"><%= fmt(r.created_at) %></td>
             <td data-label="MAC" class="mono"><%= r.mac_address || '—' %></td>
+            <td data-label="Device">
+              <% const dv = vendorOf(r.mac_address); %>
+              <% if (r.hostname) { %><span><%= r.hostname %></span><% if (dv) { %><br><% } %><% } %>
+              <% if (dv) { %><span class="card__hint"><%= dv %></span><% } else if (!r.hostname) { %>—<% } %>
+            </td>
             <td data-label="SSID"><%= r.ssid_name || '—' %></td>
             <td data-label="Hasil"><span class="badge badge--<%= r.result %>"><span class="dot" aria-hidden="true"></span><%= r.result %></span></td>
             <td data-label="Alasan"><%= r.reason || '—' %></td>

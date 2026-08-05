@@ -11,6 +11,7 @@ router.get('/', wrap(async (req, res) => {
   const sessions = await query(`
     SELECT s.*, c.name AS controller_name,
            r.owner_name, r.device_name, r.status AS rule_status,
+           h.hostname,
            TIMESTAMPDIFF(SECOND, s.started_at, IFNULL(s.stopped_at, NOW())) AS duration_seconds,
            (s.stopped_at IS NULL AND s.last_update_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)) AS is_online
     FROM sessions s
@@ -26,6 +27,7 @@ router.get('/', wrap(async (req, res) => {
         AND (r2.controller_id = s.controller_id OR r2.controller_id IS NULL)
       ORDER BY r2.controller_id IS NULL ASC, r2.id ASC LIMIT 1
     )
+    LEFT JOIN device_hosts h ON h.controller_id = s.controller_id AND h.mac_address = s.mac_address
     ${show === 'online' ? 'WHERE s.stopped_at IS NULL AND s.last_update_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)' : ''}
     ORDER BY s.last_update_at DESC
     LIMIT 500

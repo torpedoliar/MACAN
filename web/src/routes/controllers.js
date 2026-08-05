@@ -32,9 +32,13 @@ async function save(req, res, id) {
   const secret = clean(req.body.shared_secret);
   const enabled = req.body.enabled === 'on' || req.body.enabled === '1';
   const note = clean(req.body.note);
+  const unifiHost = clean(req.body.unifi_host);
+  const unifiSite = clean(req.body.unifi_site) || 'default';
+  const unifiKey = clean(req.body.unifi_api_key);
+  const unifiVerifyTls = req.body.unifi_verify_tls === 'on' || req.body.unifi_verify_tls === '1';
 
   const rerender = error => res.status(400).render('controllers/form', {
-    controller: { id, name, ip_address: ip, enabled, note }, error
+    controller: { id, name, ip_address: ip, enabled, note, unifi_host: unifiHost, unifi_site: unifiSite, unifi_verify_tls: unifiVerifyTls }, error
   });
   if (!name) return rerender('Nama controller wajib diisi.');
   if (!ip || !isControllerIp(ip)) return rerender('IP address tidak valid. Isi satu host (192.168.1.10) atau satu subnet (192.168.1.0/24, prefix /8 sampai /32).');
@@ -43,17 +47,19 @@ async function save(req, res, id) {
 
   try {
     if (id) {
-      if (secret) {
-        await query('UPDATE controllers SET name=?, ip_address=?, shared_secret=?, enabled=?, note=? WHERE id=?',
-          [name, ip, secret, enabled, note, id]);
-      } else {
-        await query('UPDATE controllers SET name=?, ip_address=?, enabled=?, note=? WHERE id=?',
-          [name, ip, enabled, note, id]);
-      }
-      await writeAudit(req.session.admin.id, 'controller_update', { id, name, ip_address: ip, secret_changed: Boolean(secret) });
+      // Build UPDATE dynamically: secret and unifi_api_key are "blank = keep old"
+      // fields, so they're omitted from the SET when empty (matches the password
+      // pattern). Everything else always writes.
+      const sets = ['name=?', 'ip_address=?', 'enabled=?', 'note=?', 'unifi_host=?', 'unifi_site=?', 'unifi_verify_tls=?'];
+      const params = [name, ip, enabled, note, unifiHost, unifiSite, unifiVerifyTls];
+      if (secret) { sets.splice(2, 0, 'shared_secret=?'); params.splice(2, 0, secret); }
+      if (unifiKey) { sets.push('unifi_api_key=?'); params.push(unifiKey); }
+      params.push(id);
+      await query(`UPDATE controllers SET ${sets.join(', ')} WHERE id=?`, params);
+      await writeAudit(req.session.admin.id, 'controller_update', { id, name, ip_address: ip, secret_changed: Boolean(secret), unifi_key_changed: Boolean(unifiKey) });
     } else {
-      await query('INSERT INTO controllers (name, ip_address, shared_secret, enabled, note) VALUES (?, ?, ?, ?, ?)',
-        [name, ip, secret, enabled, note]);
+      await query('INSERT INTO controllers (name, ip_address, shared_secret, enabled, note, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [name, ip, secret, enabled, note, unifiHost, unifiSite, unifiKey, unifiVerifyTls]);
       await writeAudit(req.session.admin.id, 'controller_create', { name, ip_address: ip });
     }
   } catch (err) {

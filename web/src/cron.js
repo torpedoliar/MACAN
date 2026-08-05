@@ -3,6 +3,8 @@ const { query } = require('./db');
 const { writeAudit } = require('./audit');
 const { notify, loadSettings } = require('./notifications');
 const { pendingCount } = require('./pending');
+const { refreshOui } = require('./oui');
+const { syncAllControllers } = require('./unifi');
 
 // A rule nobody has connected with for `inactive_after_days` is stale access:
 // flip it to deny and stamp inactive_since so the page can say why. Only allow
@@ -88,6 +90,34 @@ async function runCron() {
 // everything else in the environment that fires at :00.
 cron.schedule('7 * * * *', () => {
   runCron().catch(err => console.error('cron gagal:', err.message));
+});
+
+// UniFi hostname sync every 15 minutes — a client's hostname shows up only
+// after it has connected to the controller, and changes when renamed. Guarded
+// by unifi_sync_enabled so it's a no-op until the admin opts in. Own try/catch:
+// an offline controller must not abort log retention or the inactive sweep.
+cron.schedule('*/15 * * * *', () => {
+  (async () => {
+    const settings = await loadSettings();
+    if (settings.unifi_sync_enabled !== '1') return;
+    await syncAllControllers();
+  })().catch(err => console.error('unifi sync gagal:', err.message));
+});
+
+// OUI vendor table refresh — monthly on the 1st at 03:07. Guarded by
+// oui_last_refresh so a container restart never redownloads the 4MB file:
+// only refresh if the last one was >30 days ago (or never). Own try/catch.
+cron.schedule('7 3 1 * *', () => {
+  (async () => {
+    const settings = await loadSettings();
+    const last = settings.oui_last_refresh || '';
+    if (last) {
+      const age = Date.now() - new Date(last).getTime();
+      if (age < 30 * 86400 * 1000) return;
+    }
+    const r = await refreshOui();
+    console.log(`OUI refresh: ${r.total} vendor, ${r.fetched} byte`);
+  })().catch(err => console.error('OUI refresh gagal:', err.message));
 });
 
 runCron().catch(err => console.error('cron gagal:', err.message));

@@ -58,6 +58,43 @@
         <input type="text" id="note" name="note" value="<%= controller.note || '' %>">
       </div>
 
+      <fieldset>
+        <legend>UniFi Controller API (opsional)</legend>
+        <p class="card__hint" style="margin-top:0;margin-bottom:var(--s4)">
+          Untuk mengambil hostname device. Buat API key di UniFi Network →
+          Settings → Control Plane → Integrations. Host ini controller UniFi,
+          bukan IP sumber RADIUS di atas.
+        </p>
+        <div class="grid-2">
+          <div class="field">
+            <label class="field__label" for="unifi_host">Host UniFi</label>
+            <input type="text" id="unifi_host" name="unifi_host"
+                   value="<%= controller.unifi_host || '' %>" placeholder="https://10.10.0.100:443"
+                   maxlength="255" spellcheck="false" inputmode="url">
+          </div>
+          <div class="field">
+            <label class="field__label" for="unifi_site">Site</label>
+            <input type="text" id="unifi_site" name="unifi_site"
+                   value="<%= controller.unifi_site || 'default' %>" placeholder="default"
+                   maxlength="64" spellcheck="false">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label" for="unifi_api_key">API key</label>
+          <input type="password" id="unifi_api_key" name="unifi_api_key" autocomplete="new-password"
+                 maxlength="255" aria-describedby="unifi-key-hint"
+                 placeholder="<%= controller.id && controller.unifi_api_key ? 'Tersimpan — kosongkan bila tidak diganti' : 'X-API-KEY dari Integrations' %>">
+          <span class="field__hint" id="unifi-key-hint">
+            <% if (controller.id && controller.unifi_api_key) { %>Kosongkan untuk mempertahankan key yang sekarang.<% } else { %>Header <code class="mono">X-API-KEY</code>, bukan login user/password.<% } %>
+          </span>
+        </div>
+        <label class="check" for="unifi_verify_tls">
+          <input type="checkbox" id="unifi_verify_tls" name="unifi_verify_tls" value="1"
+                 <%= controller.unifi_verify_tls ? 'checked' : '' %>>
+          <span>Verifikasi TLS — centang hanya kalau controller pakai sertifikat valid (bukan self-signed default UniFi)</span>
+        </label>
+      </fieldset>
+
       <div class="alert" role="note">
         <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
         <div>Tidak perlu restart. Controller baru langsung dikenali pada paket pertama;

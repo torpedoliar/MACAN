@@ -15,12 +15,15 @@ const router = express.Router();
 // tables only (rules/ssids/controllers/settings) — logs and sessions are
 // operational data and are not backed up. Add mariadb-client to the image if you
 // ever need a full physical dump.
-const BACKUP_VERSION = 2;
+const BACKUP_VERSION = 3;
 // ssid_groups + ssid_group_members ikut karena mac_rules.ssid_group_id menunjuk ke
-// sana: memulihkan rule tanpa grupnya akan membuat baris hasil perluasan kehilangan
-// asalnya dan tidak bisa disinkronkan lagi. Konsekuensinya berkas backup versi 1
-// ditolak saat restore — ambil backup baru setelah upgrade.
-const TABLES = ['controllers', 'ssids', 'ssid_groups', 'ssid_group_members', 'mac_rules', 'settings'];
+// sana: memulihkan rule tanpa grupnya akan membuat baris hasil perluasan kehilangkan
+// asalnya dan tidak bisa disinkronkan lagi. device_hosts ikut supaya hostname
+// cache tidak hilang saat restore. oui_vendors sengaja dikecualikan — data referensi
+// yang bisa di-fetch ulang, dan including it would bloat every backup by megabytes.
+// Konsekuensinya berkas backup versi lama ditolak saat restore — ambil backup baru
+// setelah upgrade.
+const TABLES = ['controllers', 'ssids', 'ssid_groups', 'ssid_group_members', 'mac_rules', 'device_hosts', 'settings'];
 const SECRET_SETTINGS = ['telegram_bot_token'];
 const STATUSES = ['allow', 'deny', 'disabled'];
 
@@ -208,6 +211,7 @@ router.post('/restore/confirm', wrap(async (req, res) => {
     try {
       // Child tables first so FK order never matters even with checks re-enabled.
       await conn.query('DELETE FROM mac_rules');
+      await conn.query('DELETE FROM device_hosts');
       await conn.query('DELETE FROM ssid_group_members');
       await conn.query('DELETE FROM ssid_groups');
       await conn.query('DELETE FROM ssids');
@@ -215,8 +219,9 @@ router.post('/restore/confirm', wrap(async (req, res) => {
 
       for (const c of parsed.data.controllers) {
         await conn.execute(
-          'INSERT INTO controllers (id, name, ip_address, shared_secret, enabled, note) VALUES (?, ?, ?, ?, ?, ?)',
-          [c.id, c.name, c.ip_address, c.shared_secret, c.enabled ? 1 : 0, c.note ?? null]
+          'INSERT INTO controllers (id, name, ip_address, shared_secret, enabled, note, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [c.id, c.name, c.ip_address, c.shared_secret, c.enabled ? 1 : 0, c.note ?? null,
+           c.unifi_host ?? null, c.unifi_site ?? 'default', c.unifi_api_key ?? null, c.unifi_verify_tls ? 1 : 0]
         );
       }
       for (const s of parsed.data.ssids) {
@@ -240,6 +245,12 @@ router.post('/restore/confirm', wrap(async (req, res) => {
           [r.id, r.controller_id ?? null, r.ssid_name, normalizeMac(r.mac_address), String(r.status),
            r.owner_name ?? null, r.device_name ?? null, r.note ?? null, r.ssid_group_id ?? null,
            r.last_seen_at ?? null, r.inactive_since ?? null]
+        );
+      }
+      for (const d of (parsed.data.device_hosts || [])) {
+        await conn.execute(
+          'INSERT INTO device_hosts (controller_id, mac_address, hostname) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE hostname = VALUES(hostname)',
+          [d.controller_id, normalizeMac(d.mac_address), d.hostname ?? null]
         );
       }
       for (const s of parsed.data.settings) {

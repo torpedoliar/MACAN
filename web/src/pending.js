@@ -18,9 +18,11 @@ const PENDING_FROM = `
 const PENDING_LIST = `
   SELECT a.mac_address, a.ssid_name, a.controller_id,
          (SELECT c.name FROM controllers c WHERE c.id = a.controller_id) AS controller_name,
+         h.hostname,
          MAX(a.created_at) AS last_seen, COUNT(*) AS hit_count
   ${PENDING_FROM}
-  GROUP BY a.mac_address, a.ssid_name, a.controller_id
+  LEFT JOIN device_hosts h ON h.controller_id = a.controller_id AND h.mac_address = a.mac_address
+  GROUP BY a.mac_address, a.ssid_name, a.controller_id, h.hostname
   ORDER BY last_seen DESC
   LIMIT 500
 `;

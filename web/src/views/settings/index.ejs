@@ -15,6 +15,12 @@
   <div>Pengaturan tersimpan.</div>
 </div>
 <% } %>
+<% if (typeof notice !== 'undefined' && notice) { %>
+<div class="alert alert--info" role="status">
+  <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+  <div><%= notice %></div>
+</div>
+<% } %>
 <% if (tested) { %>
 <div class="alert alert--info" role="status">
   <svg class="icon" aria-hidden="true"><use href="#i-bell"></use></svg>
@@ -85,6 +91,43 @@
       <% } %>
     </div>
     <span class="field__hint" id="logo-hint">Format divalidasi dari isi file, bukan ekstensi.</span>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card__head"><h2>Identifikasi device</h2></div>
+  <div class="card__body">
+    <p class="card__hint" style="margin-bottom:var(--s4)">
+      Vendor (dari OUI MAC) dan hostname (dari UniFi Controller API) tampil di
+      halaman Approval, log, dashboard, sesi, dan rule — supaya device yang
+      perlu diapprove mudah dikenali. Hostname diambil tiap 15 menit dari
+      controller yang punya kredensial UniFi API (atur per controller di
+      <a href="/controllers">halaman Controller</a>).
+    </p>
+    <form action="/settings" method="POST" style="margin-bottom:var(--s4)">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="unifi_sync_enabled" value="<%= cfg.unifi_sync_enabled === '1' ? '0' : '1' %>">
+      <button class="btn <%= cfg.unifi_sync_enabled === '1' ? 'btn--danger' : 'btn--primary' %>" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#<%= cfg.unifi_sync_enabled === '1' ? 'i-x-circle' : 'i-check' %>"></use></svg>
+        <%= cfg.unifi_sync_enabled === '1' ? 'Matikan sync UniFi' : 'Aktifkan sync UniFi' %>
+      </button>
+    </form>
+    <% if (cfg.unifi_last_error) { %>
+    <div class="alert alert--warning" role="note" style="margin:0 0 var(--s4)">
+      <svg class="icon" aria-hidden="true"><use href="#i-warning"></use></svg>
+      <div>Sync UniFi terakhir gagal: <span class="mono"><%= cfg.unifi_last_error %></span></div>
+    </div>
+    <% } %>
+    <div class="btn-row">
+      <form action="/settings/oui-refresh" method="POST">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>
+          Refresh OUI sekarang
+        </button>
+      </form>
+      <span class="card__hint">Vendor terakhir dimuat: <%= cfg.oui_last_refresh || 'belum pernah' %></span>
+    </div>
   </div>
 </section>
 

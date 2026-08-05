@@ -90,7 +90,10 @@
       <tbody>
         <% rules.forEach(r => { %>
         <tr>
-          <td data-label="MAC" class="mono"><%= r.mac_address %></td>
+          <td data-label="MAC" class="mono">
+            <%= r.mac_address %>
+            <% const rv = vendorOf(r.mac_address); if (rv) { %><br><span class="card__hint"><%= rv %></span><% } %>
+          </td>
           <td data-label="SSID">
             <%= r.ssid_name %>
             <% if (r.ssid_group_id) { %>
