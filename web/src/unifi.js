@@ -82,16 +82,28 @@ async function syncController(ctrl) {
       const res = await apiGet(ctrl.unifi_host, `/sites/${encodeURIComponent(siteId)}/clients?limit=${PAGE_LIMIT}&offset=${offset}`,
         ctrl.unifi_api_key, ctrl.unifi_verify_tls);
       const clients = Array.isArray(res) ? res : (res.data || []);
+      // Collect rows with a non-empty hostname: a client without a name carries
+      // no identity value, and upserting NULL would overwrite a previously-known
+      // hostname when UniFi momentarily returns an empty name (rename, API lag).
+      const rows = [];
       for (const c of clients) {
         const mac = normalizeMac(c.macAddress || c.mac || '');
         const hostname = (c.name || c.hostname || '').slice(0, 160);
-        if (!mac) continue;
-        await query(
-          'INSERT INTO device_hosts (controller_id, mac_address, hostname) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE hostname = VALUES(hostname), last_sync = CURRENT_TIMESTAMP',
-          [ctrl.id, mac, hostname || null]
-        );
-        synced++;
+        if (!mac || !hostname) continue;
+        rows.push([ctrl.id, mac, hostname]);
       }
+      // Bulk upsert in chunks — 1000 devices = 2 statements, not 1000 round-trips.
+      // The per-row INSERT that was here before would contend with RADIUS queries
+      // at >1k clients; this keeps the sync off the DB connection for most of it.
+      for (let i = 0; i < rows.length; i += 500) {
+        const chunk = rows.slice(i, i + 500);
+        const values = chunk.map(() => '(?, ?, ?)').join(', ');
+        await query(
+          `INSERT INTO device_hosts (controller_id, mac_address, hostname) VALUES ${values} ON DUPLICATE KEY UPDATE hostname = VALUES(hostname), last_sync = CURRENT_TIMESTAMP`,
+          chunk.flat()
+        );
+      }
+      synced += rows.length;
       if (clients.length < PAGE_LIMIT) break;
       offset += PAGE_LIMIT;
     }
