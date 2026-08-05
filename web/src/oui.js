@@ -1,8 +1,10 @@
 const https = require('https');
 const { query } = require('./db');
 
-// IEEE OUI registry. ~35k prefixes, ~4MB text. Refetchable reference data.
-const OUI_URL = 'https://standards-ieee.org/products-programs/regauth/oui/oui.txt';
+// IEEE OUI registry. ~35k prefixes, ~5MB text. Refetchable reference data.
+// The host is standards-oui.ieee.org (not standards-ieee.org — that 404s with
+// ENOTFOUND). Verified 2026-08 against the live URL.
+const OUI_URL = 'https://standards-oui.ieee.org/oui/oui.txt';
 const MAX_BYTES = 8 * 1024 * 1024;
 
 // ponytail: in-memory Map for sync vendor lookup. Loaded once at boot; the table
