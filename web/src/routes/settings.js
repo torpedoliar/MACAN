@@ -7,6 +7,7 @@ const { wrap, verifyCsrf } = require('../middleware');
 const { sendTest } = require('../notifications');
 const { setLogo, clearLogo, sniff, getLogo } = require('../logo');
 const { refreshOui } = require('../oui');
+const { syncAllControllers } = require('../unifi');
 const router = express.Router();
 
 // Logo upload: temp file, parsed into memory then validated by magic byte.
@@ -153,6 +154,20 @@ router.post('/oui-refresh', verifyCsrf, wrap(async (req, res) => {
     res.redirect('/settings?saved=1&notice=' + encodeURIComponent(`OUI: ${r.total} vendor termuat.`));
   } catch (err) {
     res.redirect('/settings?error=' + encodeURIComponent(`OUI refresh gagal: ${err.message}`));
+  }
+}));
+
+router.post('/unifi-sync', verifyCsrf, wrap(async (req, res) => {
+  try {
+    const r = await syncAllControllers();
+    if (r.error) {
+      res.redirect('/settings?error=' + encodeURIComponent(`Sync UniFi: ${r.ok}/${r.controllers} controller OK. Error: ${r.error}`));
+    } else {
+      await writeAudit(req.session.admin.id, 'unifi_sync_manual', { ok: r.ok, controllers: r.controllers });
+      res.redirect('/settings?saved=1&notice=' + encodeURIComponent(`Sync UniFi: ${r.ok}/${r.controllers} controller, hostname terbarukan.`));
+    }
+  } catch (err) {
+    res.redirect('/settings?error=' + encodeURIComponent(`Sync UniFi gagal: ${err.message}`));
   }
 }));
 

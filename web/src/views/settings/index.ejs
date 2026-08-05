@@ -126,6 +126,15 @@
           Refresh OUI sekarang
         </button>
       </form>
+      <form action="/settings/unifi-sync" method="POST">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>
+          Sync UniFi sekarang
+        </button>
+      </form>
+    </div>
+    <div class="btn-row" style="margin-top:var(--s2)">
       <span class="card__hint">Vendor terakhir dimuat: <%= cfg.oui_last_refresh || 'belum pernah' %></span>
     </div>
   </div>
