@@ -29,6 +29,7 @@
               aria-label="Buka menu navigasi" aria-expanded="false" aria-controls="sidebar">
         <svg class="icon" aria-hidden="true"><use href="#i-menu"></use></svg>
       </button>
+      <% if (hasLogo) { %><img class="topbar__logo" src="/settings/logo" alt="" width="22" height="22"><% } %>
       <span class="topbar__title"><%= title %></span>
       <div class="topbar__spacer"></div>
       <button class="btn btn--ghost btn--icon" id="theme-toggle" type="button"

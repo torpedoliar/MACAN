@@ -280,7 +280,7 @@ const RESERVED = ['settings', 'cache', 'filename', '_locals'];
 // throws at request time is what turned "after login" into a blank page before.
 const now = new Date().toISOString();
 const shell = { title: 'X', csrfToken: 'tok', currentPath: '/', admin: { id: 1, email: 'a@b.c' },
-                maintenance: true, pendingCount: 2, assetVer: 'test' };
+                maintenance: true, pendingCount: 2, assetVer: 'test', hasLogo: false };
 const CASES = {
   'login': { error: 'salah' },
   'error': { status: 404, message: 'nope' },
@@ -357,7 +357,7 @@ const CASES = {
            reject_spike_count: '5', reject_spike_window_minutes: '10',
            notification_dedupe_minutes: '60', notification_webhook_url: '',
            telegram_bot_token: '', telegram_chat_id: '', maintenance_mode: '1' },
-    hasSecret: { telegram_bot_token: true }, errors: ['e'], saved: '1', tested: 'ok'
+    hasSecret: { telegram_bot_token: true }, hasLogo: false, errors: ['e'], saved: '1', tested: 'ok'
   },
   'data/index': {
     counts: { controllers: 1, ssids: 2, ssid_groups: 1, ssid_group_members: 2, mac_rules: 3, settings: 9 },

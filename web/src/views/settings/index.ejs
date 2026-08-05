@@ -46,6 +46,48 @@
     </form>
   </div>
 </section>
+
+<section class="card">
+  <div class="card__head"><h2>Logo aplikasi</h2></div>
+  <div class="card__body">
+    <p class="card__hint" style="margin-bottom:var(--s4)">
+      Logo tampil di sidebar, topbar, dan halaman login, menggantikan mark
+      <strong>MAC</strong> default. Disimpan di database (ikut backup). PNG, JPG,
+      GIF, WEBP, atau SVG, maksimal 2&nbsp;MB.
+    </p>
+    <div class="logo-preview" style="display:flex;align-items:center;gap:var(--s4);margin-bottom:var(--s4)">
+      <% if (hasLogo) { %>
+      <img src="/settings/logo" alt="Logo saat ini" width="48" height="48" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px">
+      <span class="card__hint">Logo aktif.</span>
+      <% } else { %>
+      <span class="sidebar__mark" aria-hidden="true" style="width:48px;height:48px;font-size:1.1rem">MAC</span>
+      <span class="card__hint">Pakai mark default.</span>
+      <% } %>
+    </div>
+    <div class="btn-row">
+      <form action="/settings/logo" method="POST" enctype="multipart/form-data" style="display:inline-flex">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="file" id="logo" name="logo" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" required
+               aria-describedby="logo-hint" style="min-height:auto;width:auto;display:inline-flex;margin-right:var(--s2)">
+        <button class="btn btn--primary" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>
+          Unggah
+        </button>
+      </form>
+      <% if (hasLogo) { %>
+      <form action="/settings/logo/delete" method="POST" data-confirm="Hapus logo dan kembali ke mark default?">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn btn--danger" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
+          Hapus logo
+        </button>
+      </form>
+      <% } %>
+    </div>
+    <span class="field__hint" id="logo-hint">Format divalidasi dari isi file, bukan ekstensi.</span>
+  </div>
+</section>
+
 <form action="/settings" method="POST">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 

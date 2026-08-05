@@ -7,6 +7,7 @@ const { query } = require('./db');
 const { migrate } = require('./migrate');
 const { writeAudit, auditContext } = require('./audit');
 const { pendingCount } = require('./pending');
+const { loadLogo, getLogo } = require('./logo');
 const { MysqlStore, csrf, maintenanceGuard, wrap, errorHandler,
         loginLockedFor, loginFailed, loginSucceeded } = require('./middleware');
 const { pool } = require('./db');
@@ -57,6 +58,7 @@ app.use((req, res, next) => {
   res.locals.currentPath = req.path;
   res.locals.maintenance = false;
   res.locals.pendingCount = 0;
+  res.locals.hasLogo = Boolean(getLogo());
   next();
 });
 app.use(maintenanceGuard);
@@ -113,6 +115,18 @@ app.post('/logout', requireAdmin, wrap(async (req, res) => {
   req.session.destroy(() => res.redirect('/login'));
 }));
 
+// Public logo endpoint so the login page (anonymous) can render the brand.
+// The mutating routes live inside the settings router behind requireAdmin.
+app.get('/settings/logo', (req, res) => {
+  const logo = getLogo();
+  if (!logo) return res.status(404).end();
+  res.type(logo.mime);
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.set('ETag', logo.etag);
+  if (req.headers['if-none-match'] === logo.etag) return res.status(304).end();
+  res.send(logo.buf);
+});
+
 app.use('/', requireAdmin, require('./routes/dashboard'));
 app.use('/controllers', requireAdmin, require('./routes/controllers'));
 app.use('/ssids', requireAdmin, require('./routes/ssids'));
@@ -136,6 +150,7 @@ const PORT = parseInt(process.env.PORT, 10) || 880;
 
 migrate()
   .then(ensureAdmin)
+  .then(loadLogo)
   .then(() => {
     require('./cron');
     const server = app.listen(PORT, () => console.log(`MACan web listening on ${PORT}`));

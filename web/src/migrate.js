@@ -86,6 +86,11 @@ async function migrate() {
     await query('INSERT IGNORE INTO settings (name, value) VALUES (?, ?)', [name, value]);
   }
 
+  // 10. Custom application logo. Stored as base64 in settings (rides backup for
+  //    free; no volume mount needed). TEXT caps ~48KB binary after base64, too
+  //    tight for a 2MB upload — widen value to MEDIUMTEXT (16MB). Idempotent.
+  await raw('ALTER TABLE settings MODIFY COLUMN value MEDIUMTEXT NOT NULL');
+
   // 9. Grup SSID. Rule yang menargetkan grup tetap disimpan sebagai satu baris
   //    mac_rules per anggota grup, jadi radius/default.conf tidak berubah sama
   //    sekali: lookup-nya tetap satu SELECT per (mac_address, ssid_name) dan tetap

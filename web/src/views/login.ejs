@@ -21,7 +21,11 @@
 <main class="auth">
   <div class="auth__card">
     <div class="auth__brand">
+      <% if (typeof hasLogo !== 'undefined' && hasLogo) { %>
+      <img class="sidebar__logo" src="/settings/logo" alt="Logo MACan" width="40" height="40">
+      <% } else { %>
       <span class="sidebar__mark" aria-hidden="true">MAC</span>
+      <% } %>
       <span class="sidebar__name">MACan<span class="sidebar__sub">MAC Auth UniFi</span></span>
     </div>
     <div class="card">

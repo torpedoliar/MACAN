@@ -1,9 +1,15 @@
 const express = require('express');
+const multer = require('multer');
+const os = require('os');
 const { query } = require('../db');
 const { writeAudit } = require('../audit');
-const { wrap } = require('../middleware');
+const { wrap, verifyCsrf } = require('../middleware');
 const { sendTest } = require('../notifications');
+const { setLogo, clearLogo, sniff, getLogo } = require('../logo');
 const router = express.Router();
+
+// Logo upload: temp file, parsed into memory then validated by magic byte.
+const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 2 * 1024 * 1024 } });
 
 // name -> validator. Numbers get a range so a typo can't disable retention
 // (0 days) or spam every tick (window 0).
@@ -34,6 +40,7 @@ router.get('/', wrap(async (req, res) => {
   res.render('settings/index', {
     cfg: masked,
     hasSecret: SECRETS.reduce((acc, k) => ({ ...acc, [k]: Boolean(settings[k]) }), {}),
+    hasLogo: Boolean(getLogo()),
     errors: req.query.error ? [req.query.error] : [],
     saved: req.query.saved,
     tested: req.query.tested
@@ -103,6 +110,34 @@ router.post('/test-notification', wrap(async (req, res) => {
   const result = await sendTest();
   await writeAudit(req.session.admin.id, 'notification_test', { ok: result.ok, channels: result.channels });
   res.redirect('/settings?tested=' + encodeURIComponent(result.message));
+}));
+
+// Serve the custom logo. Public (mounted before requireAdmin in app.js) so the
+// login page can render it. ETag + 1h cache: bust happens via the in-memory
+// cache swap on upload, not a query string — the admin's own browser gets the
+// new bytes on next nav because the ETag changes.
+router.post('/logo', upload.single('logo'), verifyCsrf, wrap(async (req, res) => {
+  if (!req.file) return res.redirect('/settings?error=' + encodeURIComponent('Pilih file logo dulu.'));
+  const fs = require('fs');
+  const buf = fs.readFileSync(req.file.path);
+  fs.unlink(req.file.path, () => {});
+  const mime = sniff(buf);
+  if (!mime) {
+    return res.redirect('/settings?error=' + encodeURIComponent('Format file tidak didukung. Pakai PNG, JPG, GIF, WEBP, atau SVG.'));
+  }
+  const b64 = buf.toString('base64');
+  await query("INSERT INTO settings (name, value) VALUES ('logo_mime', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", [mime]);
+  await query("INSERT INTO settings (name, value) VALUES ('logo_data', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", [b64]);
+  setLogo({ mime, buf, etag: '"' + buf.length.toString(16) + '-' + buf.slice(0, 8).toString('hex') + '"' });
+  await writeAudit(req.session.admin.id, 'logo_upload', { mime, bytes: buf.length });
+  res.redirect('/settings?saved=1');
+}));
+
+router.post('/logo/delete', verifyCsrf, wrap(async (req, res) => {
+  await query("DELETE FROM settings WHERE name IN ('logo_mime', 'logo_data')");
+  clearLogo();
+  await writeAudit(req.session.admin.id, 'logo_delete', {});
+  res.redirect('/settings?saved=1');
 }));
 
 module.exports = router;
