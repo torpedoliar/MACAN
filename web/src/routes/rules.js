@@ -59,7 +59,7 @@ router.get('/', wrap(async (req, res) => {
     FROM mac_rules r
     LEFT JOIN controllers c ON r.controller_id = c.id
     LEFT JOIN ssid_groups g ON r.ssid_group_id = g.id
-    LEFT JOIN device_hosts h ON h.controller_id = r.controller_id AND h.mac_address = r.mac_address
+    LEFT JOIN (SELECT mac_address, MIN(hostname) AS hostname FROM device_hosts GROUP BY mac_address) h ON h.mac_address = r.mac_address
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ORDER BY r.updated_at DESC
     LIMIT 500

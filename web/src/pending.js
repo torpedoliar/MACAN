@@ -9,7 +9,7 @@ const { query } = require('./db');
 // to slot in between FROM and WHERE here.
 const PENDING_FROM_HEAD = `
   FROM auth_logs a
-  LEFT JOIN device_hosts h ON h.controller_id = a.controller_id AND h.mac_address = a.mac_address
+  LEFT JOIN (SELECT mac_address, MIN(hostname) AS hostname FROM device_hosts GROUP BY mac_address) h ON h.mac_address = a.mac_address
 `;
 
 const PENDING_WHERE = `

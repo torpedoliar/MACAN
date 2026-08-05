@@ -27,7 +27,7 @@ router.get('/', wrap(async (req, res) => {
   const logs = await query(`
     SELECT a.*, c.name AS controller_name, h.hostname
     FROM auth_logs a LEFT JOIN controllers c ON a.controller_id = c.id
-    LEFT JOIN device_hosts h ON h.controller_id = a.controller_id AND h.mac_address = a.mac_address
+    LEFT JOIN (SELECT mac_address, MIN(hostname) AS hostname FROM device_hosts GROUP BY mac_address) h ON h.mac_address = a.mac_address
     ${clause}
     ORDER BY a.created_at DESC
     LIMIT ${PER_PAGE} OFFSET ${offset}

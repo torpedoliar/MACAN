@@ -111,7 +111,7 @@
             <% } %>
           </td>
           <td data-label="Pemilik"><%= r.owner_name || '—' %></td>
-          <td data-label="Perangkat"><%= r.device_name || '—' %></td>
+          <td data-label="Perangkat"><%= r.device_name || r.hostname || '—' %></td>
           <td data-label="Terakhir terlihat" class="num"><%= fmt(r.last_seen_at) %></td>
           <td data-label="Aksi" class="actions">
             <a class="btn btn--sm" href="/rules/<%= r.id %>/edit">
