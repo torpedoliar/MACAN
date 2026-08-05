@@ -66,7 +66,12 @@ async function refreshOui() {
 
 // node:https GET with body accumulation + size cap + timeout. Mirrors the
 // notifications.js post() shape but reads the response instead of draining it.
-function fetchText(url, maxBytes) {
+// Retries on transient DNS errors (EAI_AGAIN / EAI_EAGAIN): Docker's embedded
+// resolver (127.0.0.11) intermittently times out on lookups — the connection
+// itself succeeds on retry, so a single EAI_AGAIN must not fail the whole fetch.
+const RETRYABLE_DNS = new Set(['EAI_AGAIN', 'EAI_EAGAIN', 'EAI_NODATA']);
+
+function fetchTextOnce(url, maxBytes) {
   return new Promise((resolve, reject) => {
     let target;
     try { target = new URL(url); }
@@ -94,6 +99,22 @@ function fetchText(url, maxBytes) {
     req.on('error', reject);
     req.end();
   });
+}
+
+async function fetchText(url, maxBytes) {
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await fetchTextOnce(url, maxBytes);
+    } catch (err) {
+      lastErr = err;
+      // Only retry transient DNS resolver hiccups; HTTP 4xx/5xx or size cap
+      // errors are deterministic and won't change on retry.
+      if (!RETRYABLE_DNS.has(err.code)) break;
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
 }
 
 module.exports = { loadVendors, vendorOf, refreshOui };
