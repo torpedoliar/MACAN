@@ -58,7 +58,7 @@ function apiGet(host, path, apiKey, verifyTls) {
 // Per-site pagination via offset+limit. Returns {sites, clients}. Throws on
 // auth/network failure — caller wraps in try/catch so one offline controller
 // doesn't abort the others.
-async function syncController(ctrl) {
+async function syncController(ctrl, known) {
   if (!ctrl.unifi_host || !ctrl.unifi_api_key) {
     throw new Error('unifi_host atau unifi_api_key kosong');
   }
@@ -72,7 +72,7 @@ async function syncController(ctrl) {
   if (!targets.length) targets = siteList;
   if (!targets.length) throw new Error(`tidak ada site di controller (cari: '${siteWanted}')`);
 
-  let synced = 0, skipped = 0;
+  let synced = 0, skipped = 0, unknown = 0;
   for (const site of targets) {
     const siteId = site.id || site._id;
     if (!siteId) continue;
@@ -91,6 +91,9 @@ async function syncController(ctrl) {
       // Field fallback: integration v1 list clients resmi cuma `name`, tapi
       // firmware/wrapper beda bisa expose `hostname`/`display_name` — fallback
       // murah, tanpa biaya request.
+      // known-scope: hanya upsert MAC yang sudah muncul di aplikasi. MAC asing
+      // (device UniFi yg belum pernah auth ke RADIUS) diabaikan supaya
+      // device_hosts tidak menumpuk data yg tidak relevan.
       const rows = [];
       for (const c of clients) {
         const mac = normalizeMac(c.macAddress || c.mac || '');
@@ -102,6 +105,7 @@ async function syncController(ctrl) {
         if (displayName) withDisplay++;
         const chosen = (name || hostname || displayName || '').slice(0, 160);
         if (!mac) continue;
+        if (!known.has(mac)) { unknown++; continue; }
         if (!chosen) { skipped++; continue; }
         rows.push([ctrl.id, mac, chosen]);
       }
@@ -122,10 +126,10 @@ async function syncController(ctrl) {
       offset += PAGE_LIMIT;
     }
     // Diagnostic per-site: kalau hostname kosong di UI, output ini tunjukkin
-    // kenapa — field mana yang terisi, berapa di-skip, sample client aktual.
-    console.error(`unifi sync ${ctrl.unifi_host} site=${siteId}: fetched=${fetched} name=${withName} hostname=${withHostname} displayName=${withDisplay} synced=${synced} skipped=${skipped} sample=${sample}`);
+    // kenapa — field mana yang terisi, berapa di-skip/unknown, sample client aktual.
+    console.error(`unifi sync ${ctrl.unifi_host} site=${siteId}: fetched=${fetched} name=${withName} hostname=${withHostname} displayName=${withDisplay} synced=${synced} skipped=${skipped} unknown=${unknown} sample=${sample}`);
   }
-  return { sites: targets.length, clients: synced, skipped };
+  return { sites: targets.length, clients: synced, skipped, unknown };
 }
 
 // Sync every enabled controller that has UniFi creds. Per-controller try/catch:
@@ -135,21 +139,41 @@ async function syncAllControllers() {
   const ctrls = await query(
     "SELECT id, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls FROM controllers WHERE enabled = 1 AND unifi_host IS NOT NULL AND unifi_api_key IS NOT NULL AND unifi_host <> '' AND unifi_api_key <> ''"
   );
+  // Known-MAC scope: upsert hostname hanya untuk MAC yang sudah muncul di
+  // aplikasi — auth_logs (pernah auth, termasuk pending), sessions (online),
+  // mac_rules (rule). device_hosts tidak diisi MAC asing yang tidak pernah
+  // tampil, supaya sinkronisasi tidak menumpuk data tidak relevan. MAC yang
+  // sudah berhenti muncul tetap ada di device_hosts (cache), tapi tidak
+  // ditambah yang baru.
+  // ponytail: satu UNION per sync, bukan per controller. Kalau auth_logs
+  // mencapai jutaan row, tambah index pada mac_address saja — DISTINCT tanpa
+  // index akan full-scan.
+  const knownRows = await query(`
+    SELECT mac_address FROM (
+      SELECT DISTINCT mac_address FROM auth_logs WHERE mac_address IS NOT NULL
+      UNION
+      SELECT DISTINCT mac_address FROM sessions WHERE mac_address IS NOT NULL
+      UNION
+      SELECT DISTINCT mac_address FROM mac_rules
+    ) m
+  `);
+  const known = new Set(knownRows.map(r => r.mac_address));
   let lastErr = '';
-  let ok = 0, synced = 0, skipped = 0;
+  let ok = 0, synced = 0, skipped = 0, unknown = 0;
   for (const c of ctrls) {
     try {
-      const r = await syncController(c);
+      const r = await syncController(c, known);
       ok++;
       synced += r.clients;
       skipped += r.skipped;
+      unknown += r.unknown;
     } catch (err) {
       lastErr = `${new Date().toLocaleString('sv-SE')} ${c.unifi_host}: ${err.message}`;
     }
   }
   await query('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
     ['unifi_last_error', lastErr]);
-  return { controllers: ctrls.length, ok, synced, skipped, error: lastErr };
+  return { controllers: ctrls.length, ok, synced, skipped, unknown, known: known.size, error: lastErr };
 }
 
 // Single MAC lookup. Used by routes that already have controller_id in scope.

@@ -166,10 +166,10 @@ router.post('/unifi-sync', verifyCsrf, wrap(async (req, res) => {
     } else {
       await writeAudit(req.session.admin.id, 'unifi_sync_manual', { ok: r.ok, controllers: r.controllers });
       const msg = r.synced > 0
-        ? `Sync UniFi: ${r.ok}/${r.controllers} controller, ${r.synced} hostname terbarukan.`
+        ? `Sync UniFi: ${r.ok}/${r.controllers} controller, ${r.synced} hostname di-update (dari ${r.unknown} MAC asing yg di-skip, ${r.skipped} tanpa nama).`
         : r.skipped > 0
-          ? `Sync UniFi: ${r.ok}/${r.controllers} controller OK, tapi 0 hostname. ${r.skipped} client di-skip — device belum diberi nama / DHCP hostname kosong di UniFi.`
-          : `Sync UniFi: ${r.ok}/${r.controllers} controller OK, 0 client ditemukan.`;
+          ? `Sync UniFi: ${r.ok}/${r.controllers} controller OK, tapi 0 hostname. ${r.skipped} MAC dikenal tanpa nama di UniFi, ${r.unknown} MAC asing di-skip.`
+          : `Sync UniFi: ${r.ok}/${r.controllers} controller OK, 0 client dikenal ditemukan (cek apakah device sudah auth ke RADIUS).`;
       res.redirect('/settings?saved=1&notice=' + encodeURIComponent(msg));
     }
   } catch (err) {
