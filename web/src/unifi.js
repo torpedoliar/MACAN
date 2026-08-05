@@ -335,22 +335,44 @@ async function getHostname(controllerId, mac) {
 // has no site named "default" — its site name is whatever was set at adoption).
 async function testControllers() {
   const ctrls = await query(
-    "SELECT id, name, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls FROM controllers WHERE enabled = 1 AND unifi_host IS NOT NULL AND unifi_api_key IS NOT NULL AND unifi_host <> '' AND unifi_api_key <> ''"
+    "SELECT id, name, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls, unifi_username, unifi_password FROM controllers WHERE enabled = 1 AND unifi_host IS NOT NULL AND unifi_host <> '' AND ((unifi_api_key IS NOT NULL AND unifi_api_key <> '') OR (unifi_username IS NOT NULL AND unifi_username <> ''))"
   );
   const out = [];
   for (const c of ctrls) {
-    try {
-      const sites = await apiGet(c.unifi_host, '/sites', c.unifi_api_key, c.unifi_verify_tls);
-      const siteList = Array.isArray(sites) ? sites : (sites.data || []);
-      out.push({
-        name: c.name, host: c.unifi_host, ok: true,
-        sites: siteList.map(s => ({ name: s.name, id: s.id || s._id })),
-        configured_site: c.unifi_site || 'default',
-        matched: siteList.some(s => s.name === (c.unifi_site || 'default'))
-      });
-    } catch (err) {
-      out.push({ name: c.name, host: c.unifi_host, ok: false, error: err.message });
+    // Tahap 1: integration v1 (X-API-KEY) — kalau ada api_key.
+    let sites = [], v1Ok = false, v1Err = '';
+    if (c.unifi_api_key) {
+      try {
+        const res = await apiGet(c.unifi_host, '/sites', c.unifi_api_key, c.unifi_verify_tls);
+        sites = Array.isArray(res) ? res : (res.data || []);
+        v1Ok = true;
+      } catch (err) { v1Err = err.message; }
     }
+    // Tahap 2: classic login (user/pass) — kalau ada. Tes login + GET /rest/user
+    // untuk konfirmasi site classic (short name) benar dan akun punya akses.
+    let classicOk = null, classicErr = '', classicSite = c.unifi_site || 'default';
+    if (c.unifi_username && c.unifi_password) {
+      try {
+        const session = await apiClassicLogin(c.unifi_host, c.unifi_username, c.unifi_password, c.unifi_verify_tls);
+        // Cek site short-name valid: GET /api/s/{site}/self. 404 = site salah.
+        await apiClassicGet(c.unifi_host, `/api/s/${encodeURIComponent(classicSite)}/self`, session.cookies, c.unifi_verify_tls);
+        classicOk = true;
+      } catch (err) { classicOk = false; classicErr = err.message; }
+    }
+    // ok = minimal satu tahap sukses. Gagal total = alert merah.
+    const ok = v1Ok || classicOk === true;
+    out.push({
+      name: c.name, host: c.unifi_host, ok,
+      // v1 detail
+      sites: sites.map(s => ({ name: s.name, id: s.id || s._id })),
+      configured_site: c.unifi_site || 'default',
+      matched: sites.some(s => s.name === (c.unifi_site || 'default')),
+      v1Skipped: !c.unifi_api_key,
+      v1Error: v1Err,
+      // classic detail
+      classicSkipped: !c.unifi_username || !c.unifi_password,
+      classicOk, classicSite, classicError: classicErr
+    });
   }
   return out;
 }

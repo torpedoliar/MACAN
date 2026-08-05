@@ -151,10 +151,18 @@
         <svg class="icon" aria-hidden="true"><use href="#<%= t.ok ? 'i-check' : 'i-x-circle' %>"></use></svg>
         <div>
           <strong><%= t.name %></strong> · <span class="mono"><%= t.host %></span>
-          <% if (!t.ok) { %><br>Gagal: <%= t.error %><% } else { %>
-          <br>Site terkonfigurasi: <span class="mono"><%= t.configured_site %></span>
-          <%= t.matched ? '✓ cocok' : '✗ tidak ditemukan — sync pakai semua site' %>
-          <br>Site tersedia: <% t.sites.forEach((s, i) => { %><span class="mono"><%= s.name %></span><% if (i < t.sites.length - 1) { %>, <% } %><% }) %>
+          <% if (!t.ok) { %><br>Gagal total<% } %>
+          <% if (!t.v1Skipped) { %>
+            <br><span style="font-weight:600">API v1 (X-API-KEY):</span>
+            <% if (t.v1Error) { %> ✗ <%= t.v1Error %><% } else { %> ✓
+              — site <span class="mono"><%= t.configured_site %></span> <%= t.matched ? 'cocok' : 'tidak ditemukan — sync pakai semua site' %>
+              <% if (t.sites.length) { %><br>Site tersedia: <% t.sites.forEach((s, i) => { %><span class="mono"><%= s.name %></span><% if (i < t.sites.length - 1) { %>, <% } %><% }) %><% } %>
+            <% } %>
+          <% } %>
+          <% if (!t.classicSkipped) { %>
+            <br><span style="font-weight:600">Classic (login user/pass):</span>
+            <% if (t.classicOk) { %> ✓ — login OK, site <span class="mono"><%= t.classicSite %></span> terjangkau<% }
+               else { %> ✗ <%= t.classicError || 'gagal' %><% } %>
           <% } %>
         </div>
       </div>
