@@ -217,10 +217,14 @@ async function syncController(ctrl, known) {
   // included) — integration v1 cuma return online. Tahap terpisah supaya
   // gagal classic tidak merusak sync online. Known-scope tetap: device_hosts
   // hanya diisi MAC yg muncul di aplikasi.
-  let classic = { fetched: 0, synced: 0, skipped: 0, unknown: 0 };
+  let classic = { fetched: 0, synced: 0, skipped: 0, unknown: 0, err: '' };
+  // ponytail: classic error dilempar ke caller, bukan di-swallow. Sync v1 tetap
+  // berjalan; tapi kalau classic gagal (sering: /rest/user 404 di firmware baru
+  // walau /self OK), notice harus bilang jelas, bukan "0 client" diam-diam.
   if (ctrl.unifi_username && ctrl.unifi_password) {
     try { classic = await syncControllerClassic(ctrl, known); }
     catch (err) {
+      classic.err = err.message;
       console.error(`unifi classic sync ${ctrl.unifi_host} gagal: ${err.message}`);
     }
   }
@@ -230,7 +234,8 @@ async function syncController(ctrl, known) {
     skipped: skipped + classic.skipped,
     unknown: unknown + classic.unknown,
     classicFetched: classic.fetched,
-    classicSynced: classic.synced
+    classicSynced: classic.synced,
+    classicError: classic.err
   };
 }
 
@@ -305,7 +310,7 @@ async function syncAllControllers() {
   `);
   const known = new Set(knownRows.map(r => r.mac_address));
   let lastErr = '';
-  let ok = 0, synced = 0, skipped = 0, unknown = 0;
+  let ok = 0, synced = 0, skipped = 0, unknown = 0, classicFetched = 0, classicErr = '';
   for (const c of ctrls) {
     try {
       const r = await syncController(c, known);
@@ -313,13 +318,18 @@ async function syncAllControllers() {
       synced += r.clients;
       skipped += r.skipped;
       unknown += r.unknown;
+      classicFetched += r.classicFetched || 0;
+      // Classic error non-fatal: sync v1 tetap OK, tapi classic path (satu-satunya
+      // sumber offline) gagal. Kumpulkan supaya notice bisa tunjukkin penyebab,
+      // bukan "0 client" yang menyesatkan.
+      if (r.classicError) classicErr += (classicErr ? '; ' : '') + `${c.unifi_host}: ${r.classicError}`;
     } catch (err) {
       lastErr = `${new Date().toLocaleString('sv-SE')} ${c.unifi_host}: ${err.message}`;
     }
   }
   await query('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
     ['unifi_last_error', lastErr]);
-  return { controllers: ctrls.length, ok, synced, skipped, unknown, known: known.size, error: lastErr };
+  return { controllers: ctrls.length, ok, synced, skipped, unknown, known: known.size, classicFetched, classicError: classicErr, error: lastErr };
 }
 
 // Single MAC lookup. Used by routes that already have controller_id in scope.
