@@ -42,6 +42,11 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    # Public resolvers — host sering pakai loopback DNS (systemd-resolved
+    # 127.0.0.53) yg Docker embedded DNS ga bisa forward dari dlm container,
+    # jadi lookup external (OUI refresh, UniFi API, Telegram) kena EAI_AGAIN.
+    # Service name (db) tetap resolve via embedded DNS.
+    dns: [1.1.1.1, 8.8.8.8]
     networks: [internal]
 
   radius:
