@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
-# Reset password admin MACan langsung di container MariaDB.
-# Reusable ops tool — tidak menyimpan secret apa pun di repo.
+# Reset password admin MACan ke default (Arabika1927) via container MariaDB.
+# Email di-input saat jalan — tidak ada email personal di script.
 #
-# Pakai:
-#   ADMIN_EMAIL='user@contoh.com' ADMIN_HASH='$2b$12$...' bash reset-admin-password.sh
-#
-# Generate hash bcrypt (rounds 12 = sama dengan ensureAdmin()) di mesin yang
-# punya node + bcrypt (mis. container web, atau lokal pakai bcrypt repo):
-#   cd web && node -e "const b=require('bcrypt');b.hash('PASSWORD_BARU',12).then(h=>console.log(h))"
-# Copy output, jadikan ADMIN_HASH. Hash satu arah — aman lewat env var.
+# Pakai:  bash reset-admin-password.sh
+# Lalu:   login pakai email yg dimasukkan + password Arabika1927.
+#         GANTI password default ini segera setelah login (hash ada di repo).
 set -euo pipefail
 
 CONTAINER="${CONTAINER:-radiusmac-db-1}"
 DB_NAME="${DB_NAME:-macan}"
-DB_ROOT_PASS="${DB_ROOT_PASS:?DB_ROOT_PASS wajib (ambil dari .env, DB_ROOT_PASSWORD)}"
-EMAIL="${ADMIN_EMAIL:?ADMIN_EMAIL wajib, contoh: ADMIN_EMAIL='a@b.com'}"
-HASH="${ADMIN_HASH:?ADMIN_HASH wajib: hash bcrypt rounds 12 untuk password baru}"
+DB_ROOT_PASS="${DB_ROOT_PASS:-rootsecret}"   # override lewat env kalau beda dari .env
+# Hash bcrypt rounds 12 untuk password default "Arabika1927" — sama dengan
+# rounds yg dipakai ensureAdmin() saat seeding. Hash satu arah, tapi password
+# default ini tercatat di repo: ganti setelah login pertama.
+HASH='$2b$12$Cf9OdZP69u7KHcfrJmpUr.LmNh.b.yaQ2Et/hl2I1kmmOjsIk1FmS'
+
+read -rp "Email admin yang direset: " EMAIL
+[ -n "$EMAIL" ] || { echo "Email kosong." >&2; exit 1; }
 
 # 1. Container ada?
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
@@ -24,7 +25,7 @@ if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
   exit 1
 fi
 
-# 2. Email terdaftar? (bukan asumsi — kalau salah email, UPDATE 0 baris diam-diam)
+# 2. Email terdaftar? (bukan asumsi — kalau salah, UPDATE 0 baris diam-diam)
 EXISTS=$(docker exec -i "$CONTAINER" mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" \
   -N -B -e "SELECT COUNT(*) FROM admins WHERE email='$EMAIL';" 2>/dev/null) || {
     echo "ERROR: gagal koneksi MariaDB. Cek DB_ROOT_PASS / DB_NAME / nama container." >&2; exit 1; }
@@ -37,14 +38,15 @@ if [ "$EXISTS" != "1" ]; then
   exit 1
 fi
 
-# 3. Reset password + pastikan enabled.
+# 3. Reset password ke default + pastikan enabled.
 docker exec -i "$CONTAINER" mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" \
   -e "UPDATE admins SET password_hash='$HASH', enabled=1 WHERE email='$EMAIL';" 2>/dev/null
 
-# 4. Verifikasi (email + enabled + hash prefix — bukan hash penuh, jangan bocor di log).
+# 4. Verifikasi (email + enabled + hash prefix — bukan hash penuh).
 RESULT=$(docker exec -i "$CONTAINER" mariadb -uroot -p"$DB_ROOT_PASS" "$DB_NAME" \
   -N -B -e "SELECT CONCAT(email,' | enabled=',enabled,' | hash_prefix=',LEFT(password_hash,7)) FROM admins WHERE email='$EMAIL';" 2>/dev/null)
 
-echo "OK. Password direset untuk:"
+echo "OK. Password direset ke default untuk:"
 echo "  $RESULT"
-echo "Login pakai email: $EMAIL  dan password baru yang sudah kamu pilih."
+echo "Login: $EMAIL / Arabika1927"
+echo ">> Ganti password default ini segera setelah login."
