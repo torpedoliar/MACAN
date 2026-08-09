@@ -7,7 +7,7 @@
   <title>Masuk · MACan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap">
   <link rel="stylesheet" href="/app.css?v=<%= assetVer %>">
   <script>
     try {
@@ -20,7 +20,7 @@
 <%- include('/partials/icons') %>
 <main class="auth">
   <div class="auth__card">
-    <div class="auth__brand">
+    <div class="auth__brand brand-grid">
       <% if (typeof hasLogo !== 'undefined' && hasLogo) { %>
       <img class="sidebar__logo" src="/settings/logo" alt="Logo MACan" width="40" height="40">
       <% } else { %>

@@ -26,11 +26,11 @@
     : currentPath === href || currentPath.startsWith(href + '/');
 %>
 <aside class="sidebar" id="sidebar" aria-label="Navigasi utama">
-  <div class="sidebar__brand">
+  <div class="sidebar__brand brand-grid">
     <% if (hasLogo) { %>
     <img class="sidebar__logo" src="/settings/logo" alt="Logo MACan" width="32" height="32">
     <% } else { %>
-    <span class="sidebar__mark" aria-hidden="true">MAC</span>
+    <span class="sidebar__mark" aria-hidden="true">M</span>
     <% } %>
     <span class="sidebar__name">MACan<span class="sidebar__sub">MAC Auth UniFi</span></span>
   </div>

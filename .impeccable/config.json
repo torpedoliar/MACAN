@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "web/public/app.css"
+        ],
+        "createdAt": "2026-08-09T14:20:02.132Z",
+        "reason": "User-confirmed signature motif (Swiss grid system): crosshair grid scoped to .sidebar__brand + .auth__brand brand zones only. Confirmed twice via AskUserQuestion."
+      }
+    ]
+  }
+}
