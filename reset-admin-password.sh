@@ -52,11 +52,10 @@ fi
 
 # Helper: jalanin SQL via container. MYSQL_PWD via env container supaya password
 # tidak lewat CLI (aman utk special char + tidak muncul di `ps`).
-# Coba mariadb dulu; kalau command not found, fallback ke mysql (image lama).
+# ponytail: pakai `mariadb` langsung — container image mariadb:11 pasti punya
+# client-nya. Deteksi command-v tanpa shell cuma bikin rusak (command = builtin).
 sql() {
-  local client="mariadb"
-  docker exec "$CONTAINER" command -v mariadb >/dev/null 2>&1 || client="mysql"
-  docker exec -i -e MYSQL_PWD="$DB_PASS" "$CONTAINER" "$client" -u"$DB_USER" "$DB_NAME" "$@"
+  docker exec -i -e MYSQL_PWD="$DB_PASS" "$CONTAINER" mariadb -u"$DB_USER" "$DB_NAME" "$@"
 }
 
 # 3. Email terdaftar? (bukan asumsi — kalau salah, UPDATE 0 baris diam-diam)
