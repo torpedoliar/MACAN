@@ -8,7 +8,7 @@ const { query } = require('./db');
 // resolver bisa resolve); Docker embedded DNS ikut gagal karena proxy-nya.
 // linuxnet.ca resolve normal di host yg memblokir IEEE. Fallback darurat:
 // https://api.maclookup.app/v2/macs/<mac> (per-MAC, bukan bulk).
-const OUI_URL = 'https://linuxnet.ca/ieee/oui/oui.txt';
+const OUI_URL = 'https://www.linuxnet.ca/ieee/oui/oui.txt';
 const MAX_BYTES = 8 * 1024 * 1024;
 
 // ponytail: in-memory Map for sync vendor lookup. Loaded once at boot; the table
