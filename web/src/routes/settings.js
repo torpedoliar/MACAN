@@ -166,12 +166,12 @@ router.post('/unifi-sync', verifyCsrf, wrap(async (req, res) => {
     } else {
       await writeAudit(req.session.admin.id, 'unifi_sync_manual', { ok: r.ok, controllers: r.controllers });
       const msg = r.synced > 0
-        ? `Sync UniFi: ${r.ok}/${r.controllers} controller, ${r.synced} hostname di-update (dari ${r.unknown} MAC asing yg di-skip, ${r.skipped} tanpa nama).`
+        ? `Sync UniFi: ${r.ok}/${r.controllers} controller, ${r.synced} hostname di-update (${r.skipped} tanpa nama).`
         : r.skipped > 0
-          ? `Sync UniFi: ${r.ok}/${r.controllers} controller OK, tapi 0 hostname. ${r.skipped} MAC dikenal tanpa nama di UniFi, ${r.unknown} MAC asing di-skip.`
+          ? `Sync UniFi: ${r.ok}/${r.controllers} controller OK, tapi 0 hostname. ${r.skipped} client tanpa nama di UniFi.`
           : r.classicError
-            ? `Sync UniFi: 0 client dikenal. Integration v1 hanya ambil device ONLINE — device terdaftar/pending yg lagi offline tidak ter-fetch. Classic API (satu-satunya sumber offline) juga gagal: ${r.classicError}.`
-            : `Sync UniFi: ${r.ok}/${r.controllers} controller OK, 0 client dikenal ditemukan. Integration v1 cuma ambil device online. Device terdaftar/pending yg lagi offline tidak ter-fetch — isi Username+Password UniFi (classic) di controller agar offline ikut diambil.`;
+            ? `Sync UniFi: 0 hostname dimuat. Integration v1 hanya ambil device ONLINE — device terdaftar/pending yg lagi offline tidak ter-fetch. Classic API (satu-satunya sumber offline) juga gagal: ${r.classicError}.`
+            : `Sync UniFi: ${r.ok}/${r.controllers} controller OK, 0 hostname dimuat. Integration v1 cuma ambil device online. Device terdaftar/pending yg lagi offline tidak ter-fetch — isi Username+Password UniFi (classic) di controller agar offline ikut diambil.`;
       res.redirect('/settings?saved=1&notice=' + encodeURIComponent(msg));
     }
   } catch (err) {

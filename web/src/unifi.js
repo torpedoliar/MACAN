@@ -139,13 +139,13 @@ function apiClassicGet(host, path, cookies, verifyTls) {
 // Per-site pagination via offset+limit. Returns {sites, clients}. Throws on
 // auth/network failure — caller wraps in try/catch so one offline controller
 // doesn't abort the others.
-async function syncController(ctrl, known) {
+async function syncController(ctrl) {
   if (!ctrl.unifi_host) {
     throw new Error('unifi_host kosong');
   }
   // Integration v1 (X-API-KEY) untuk online client. Skip kalau tidak ada api_key
   // — controller classic-only (user/pass) tetap dapat sync lewat classic tahap.
-  let synced = 0, skipped = 0, unknown = 0, targets = [];
+  let synced = 0, skipped = 0, targets = [];
   if (ctrl.unifi_api_key) {
     const siteWanted = (ctrl.unifi_site || 'default').trim();
     const sites = await apiGet(ctrl.unifi_host, '/sites', ctrl.unifi_api_key, ctrl.unifi_verify_tls);
@@ -175,9 +175,11 @@ async function syncController(ctrl, known) {
       // Field fallback: integration v1 list clients resmi cuma `name`, tapi
       // firmware/wrapper beda bisa expose `hostname`/`display_name` — fallback
       // murah, tanpa biaya request.
-      // known-scope: hanya upsert MAC yang sudah muncul di aplikasi. MAC asing
-      // (device UniFi yg belum pernah auth ke RADIUS) diabaikan supaya
-      // device_hosts tidak menumpuk data yg tidak relevan.
+      // Semua nama client di-sync, bukan cuma yang sudah dikenal di aplikasi:
+      // gate known = hanya MAC yang sudah auth/RADIUS, tapi yang online di
+      // jaringan justru sering belum pernah auth dulu. Hasilnya hostname kosong
+      // di UI (jatuh ke vendor) utk semua device baru. device_hosts cache
+      // keyed (controller, MAC), ter-bounded roster controller — aman.
       const rows = [];
       for (const c of clients) {
         const mac = normalizeMac(c.macAddress || c.mac || '');
@@ -189,7 +191,6 @@ async function syncController(ctrl, known) {
         if (displayName) withDisplay++;
         const chosen = (name || hostname || displayName || '').slice(0, 160);
         if (!mac) continue;
-        if (!known.has(mac)) { unknown++; continue; }
         if (!chosen) { skipped++; continue; }
         rows.push([ctrl.id, mac, chosen]);
       }
@@ -210,19 +211,19 @@ async function syncController(ctrl, known) {
       offset += PAGE_LIMIT;
     }
     // Diagnostic per-site: kalau hostname kosong di UI, output ini tunjukkin
-    // kenapa — field mana yang terisi, berapa di-skip/unknown, sample client aktual.
-    console.error(`unifi sync ${ctrl.unifi_host} site=${siteId}: fetched=${fetched} name=${withName} hostname=${withHostname} displayName=${withDisplay} synced=${synced} skipped=${skipped} unknown=${unknown} sample=${sample}`);
+    // kenapa — field mana yang terisi, berapa di-skip, sample client aktual.
+    console.error(`unifi sync ${ctrl.unifi_host} site=${siteId}: fetched=${fetched} name=${withName} hostname=${withHostname} displayName=${withDisplay} synced=${synced} skipped=${skipped} sample=${sample}`);
   }
   // Classic API (cookie login) untuk ambil semua configured client (offline
   // included) — integration v1 cuma return online. Tahap terpisah supaya
   // gagal classic tidak merusak sync online. Known-scope tetap: device_hosts
   // hanya diisi MAC yg muncul di aplikasi.
-  let classic = { fetched: 0, synced: 0, skipped: 0, unknown: 0, err: '' };
+  let classic = { fetched: 0, synced: 0, skipped: 0, err: '' };
   // ponytail: classic error dilempar ke caller, bukan di-swallow. Sync v1 tetap
   // berjalan; tapi kalau classic gagal (sering: /rest/user 404 di firmware baru
   // walau /self OK), notice harus bilang jelas, bukan "0 client" diam-diam.
   if (ctrl.unifi_username && ctrl.unifi_password) {
-    try { classic = await syncControllerClassic(ctrl, known); }
+    try { classic = await syncControllerClassic(ctrl); }
     catch (err) {
       classic.err = err.message;
       console.error(`unifi classic sync ${ctrl.unifi_host} gagal: ${err.message}`);
@@ -232,7 +233,6 @@ async function syncController(ctrl, known) {
     sites: targets.length,
     clients: synced + classic.synced,
     skipped: skipped + classic.skipped,
-    unknown: unknown + classic.unknown,
     classicFetched: classic.fetched,
     classicSynced: classic.synced,
     classicError: classic.err
@@ -243,7 +243,7 @@ async function syncController(ctrl, known) {
 // client, offline included). Field hostname (DHCP/mDNS) || name (operator). Site
 // classic pakai short name (s.name), bukan UUID integration. Retry login sekali
 // kalau GET kena 401 (session expired). Throws on failure — caller try/catch.
-async function syncControllerClassic(ctrl, known) {
+async function syncControllerClassic(ctrl) {
   let session = await apiClassicLogin(ctrl.unifi_host, ctrl.unifi_username, ctrl.unifi_password, ctrl.unifi_verify_tls);
   const siteName = (ctrl.unifi_site || 'default').trim();
   const path = `/api/s/${encodeURIComponent(siteName)}/rest/user`;
@@ -259,14 +259,14 @@ async function syncControllerClassic(ctrl, known) {
   }
   // Classic API return shape: { data: [...clients], meta: {...} }
   const clients = Array.isArray(res) ? res : (res.data || []);
-  let fetched = 0, synced = 0, skipped = 0, unknown = 0;
+  let fetched = 0, synced = 0, skipped = 0;
   const rows = [];
   for (const c of clients) {
     const mac = normalizeMac(c.mac || c.macAddress || '');
     const hostname = (c.hostname || c.name || '').slice(0, 160);
     fetched++;
     if (!mac) continue;
-    if (!known.has(mac)) { unknown++; continue; }
+    // Tidak ada gate known — sama dgn integration v1: semua client di-sync.
     if (!hostname) { skipped++; continue; }
     rows.push([ctrl.id, mac, hostname]);
   }
@@ -279,8 +279,8 @@ async function syncControllerClassic(ctrl, known) {
     );
   }
   synced += rows.length;
-  console.error(`unifi classic sync ${ctrl.unifi_host} site=${siteName}: fetched=${fetched} synced=${synced} skipped=${skipped} unknown=${unknown}`);
-  return { fetched, synced, skipped, unknown };
+  console.error(`unifi classic sync ${ctrl.unifi_host} site=${siteName}: fetched=${fetched} synced=${synced} skipped=${skipped}`);
+  return { fetched, synced, skipped };
 }
 
 // Sync every enabled controller that has UniFi creds. Per-controller try/catch:
@@ -290,34 +290,14 @@ async function syncAllControllers() {
   const ctrls = await query(
     "SELECT id, unifi_host, unifi_site, unifi_api_key, unifi_verify_tls, unifi_username, unifi_password FROM controllers WHERE enabled = 1 AND unifi_host IS NOT NULL AND unifi_host <> '' AND ((unifi_api_key IS NOT NULL AND unifi_api_key <> '') OR (unifi_username IS NOT NULL AND unifi_username <> ''))"
   );
-  // Known-MAC scope: upsert hostname hanya untuk MAC yang sudah muncul di
-  // aplikasi — auth_logs (pernah auth, termasuk pending), sessions (online),
-  // mac_rules (rule). device_hosts tidak diisi MAC asing yang tidak pernah
-  // tampil, supaya sinkronisasi tidak menumpuk data tidak relevan. MAC yang
-  // sudah berhenti muncul tetap ada di device_hosts (cache), tapi tidak
-  // ditambah yang baru.
-  // ponytail: satu UNION per sync, bukan per controller. Kalau auth_logs
-  // mencapai jutaan row, tambah index pada mac_address saja — DISTINCT tanpa
-  // index akan full-scan.
-  const knownRows = await query(`
-    SELECT mac_address FROM (
-      SELECT DISTINCT mac_address FROM auth_logs WHERE mac_address IS NOT NULL
-      UNION
-      SELECT DISTINCT mac_address FROM sessions WHERE mac_address IS NOT NULL
-      UNION
-      SELECT DISTINCT mac_address FROM mac_rules
-    ) m
-  `);
-  const known = new Set(knownRows.map(r => r.mac_address));
   let lastErr = '';
-  let ok = 0, synced = 0, skipped = 0, unknown = 0, classicFetched = 0, classicErr = '';
+  let ok = 0, synced = 0, skipped = 0, classicFetched = 0, classicErr = '';
   for (const c of ctrls) {
     try {
-      const r = await syncController(c, known);
+      const r = await syncController(c);
       ok++;
       synced += r.clients;
       skipped += r.skipped;
-      unknown += r.unknown;
       classicFetched += r.classicFetched || 0;
       // Classic error non-fatal: sync v1 tetap OK, tapi classic path (satu-satunya
       // sumber offline) gagal. Kumpulkan supaya notice bisa tunjukkin penyebab,
@@ -329,7 +309,7 @@ async function syncAllControllers() {
   }
   await query('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
     ['unifi_last_error', lastErr]);
-  return { controllers: ctrls.length, ok, synced, skipped, unknown, known: known.size, classicFetched, classicError: classicErr, error: lastErr };
+  return { controllers: ctrls.length, ok, synced, skipped, classicFetched, classicError: classicErr, error: lastErr };
 }
 
 // Single MAC lookup. Used by routes that already have controller_id in scope.
