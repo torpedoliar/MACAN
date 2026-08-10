@@ -313,6 +313,7 @@ const CASES = {
     pendingBySsid: { 'S': [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
                 controller_name: 'C', last_seen: now, hit_count: 3, hostname: null }] },
     ssids: ['S'],
+    APPROVALS_PAGE_SIZE: 10,
     error: 'e', approved: '1'
   },
   'controllers/index': {

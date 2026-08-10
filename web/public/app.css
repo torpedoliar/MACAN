@@ -313,6 +313,7 @@ a:hover { text-decoration: underline; }
 .rule-group__subhead--allow { color: var(--success); }
 details.rule-group__details > summary { list-style: none; }
 details.rule-group__details > summary::-webkit-details-marker { display: none; }
+.rule-group__more { display: flex; justify-content: center; padding: var(--s3) var(--s5); border-top: 1px solid var(--border); }
 /* ===== stat tiles (Swiss KPI) ============================================ */
 .stats { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .stat {

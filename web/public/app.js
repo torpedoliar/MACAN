@@ -66,4 +66,70 @@
       setTimeout(function () { el.remove(); }, 220);
     }, 6000);
   });
+
+  // --- /approvals: client-side pagination + search ------------------------
+  // ponytail: no URL state, no round-trip. PENDING_LIST caps 500; per-SSID
+  // groups are small enough that row-visibility toggle beats server paging.
+  // Progressive: rows all render server-side; JS only hides/shows.
+  var approvalsCard = document.getElementById('approvals-card');
+  if (approvalsCard) {
+    var pageSize = parseInt(approvalsCard.dataset.pageSize, 10) || 10;
+    var groups = Array.prototype.slice.call(approvalsCard.querySelectorAll('.rule-group[data-ssid]'));
+    var searchInput = document.getElementById('approvals-q');
+
+    function visibleRows(group) {
+      return Array.prototype.slice.call(group.querySelectorAll('tbody tr')).filter(function (tr) {
+        return tr.style.display !== 'none';
+      });
+    }
+    function applyPaging(group, showAll) {
+      var rows = visibleRows(group);
+      rows.forEach(function (tr, i) {
+        tr.style.display = showAll || i < pageSize ? '' : 'none';
+      });
+      var more = group.querySelector('[data-more]');
+      if (more) more.style.display = (!showAll && rows.length > pageSize) ? '' : 'none';
+    }
+    function refreshGroups() {
+      var q = (searchInput ? searchInput.value.trim().toLowerCase() : '');
+      groups.forEach(function (group) {
+        var matched = 0;
+        group.querySelectorAll('tbody tr').forEach(function (tr) {
+          var hit = !q ||
+            tr.dataset.mac.indexOf(q) > -1 ||
+            (tr.dataset.host && tr.dataset.host.toLowerCase().indexOf(q) > -1) ||
+            (tr.dataset.ctrl && tr.dataset.ctrl.toLowerCase().indexOf(q) > -1);
+          tr.style.display = hit ? '' : 'none';
+          if (hit) matched++;
+        });
+        // Reset paging per group after a search (show all matches), hide the
+        // "more" button text logic to reflect matched count.
+        applyPaging(group, q.length > 0);
+        var countEl = group.querySelector('[data-count]');
+        if (countEl) countEl.textContent = matched;
+        // Hide whole group if nothing matched.
+        group.style.display = matched > 0 ? '' : 'none';
+      });
+    }
+
+    // Initial paged render.
+    groups.forEach(function (group) { applyPaging(group, false); });
+
+    // "Tampilkan lainnya" — reveal all rows in that group.
+    approvalsCard.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-more-btn]');
+      if (!btn) return;
+      var group = e.target.closest('.rule-group');
+      if (group) applyPaging(group, true);
+    });
+
+    // Search — debounce 120ms.
+    var timer;
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(refreshGroups, 120);
+      });
+    }
+  }
 })();

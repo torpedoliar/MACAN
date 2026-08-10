@@ -7,6 +7,11 @@ const { wrap } = require('../middleware');
 const router = express.Router();
 
 const STATUSES = ['allow', 'deny', 'disabled'];
+// ponytail: client-side pagination + search, not server-side. Approval list
+// capped 500 by PENDING_LIST; per-SSID pagination per group is simpler as a
+// row-visibility toggle (no URL state per SSID, no round-trip). Server only
+// ships the page size constant. Add server pagination if pending >500 regularly.
+const APPROVALS_PAGE_SIZE = 10;
 const clean = v => {
   const s = String(v === undefined || v === null ? '' : v).trim();
   return s === '' ? null : s;
@@ -25,6 +30,7 @@ router.get('/', wrap(async (req, res) => {
     pending,
     pendingBySsid,
     ssids: Object.keys(pendingBySsid).sort(),
+    APPROVALS_PAGE_SIZE,
     error: req.query.error,
     approved: req.query.approved
   });

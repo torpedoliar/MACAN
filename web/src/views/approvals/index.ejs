@@ -15,7 +15,7 @@
 </div>
 <% } %>
 
-<section class="card">
+<section class="card" id="approvals-card" data-page-size="<%= APPROVALS_PAGE_SIZE %>">
   <div class="card__head">
     <h2>Menunggu keputusan</h2>
     <div class="btn-row"><a class="btn btn--sm" href="/rules">Semua rule</a></div>
@@ -35,12 +35,19 @@
       Allow membuat rule izin, Deny membuat rule tolak permanen sehingga hilang dari daftar ini.
     </p>
   </div>
+  <div class="card__body" style="padding-top:0">
+    <form class="field" id="approvals-search" role="search" onsubmit="return false">
+      <label class="field__label" for="approvals-q">Cari</label>
+      <input type="search" id="approvals-q" placeholder="MAC, hostname, controller"
+             autocomplete="off">
+    </form>
+  </div>
   <% ssids.forEach(ssid => { const group = pendingBySsid[ssid]; %>
-  <section class="rule-group">
+  <section class="rule-group" data-ssid="<%= ssid %>">
     <h3 class="rule-group__head">
       <svg class="icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
       <%= ssid %>
-      <span class="badge"><%= group.length %> pending</span>
+      <span class="badge"><span data-count><%= group.length %></span> pending</span>
     </h3>
     <div class="table-wrap">
       <table class="data stackable">
@@ -49,7 +56,7 @@
         </thead>
         <tbody>
           <% group.forEach(p => { %>
-          <tr>
+          <tr data-mac="<%= p.mac_address %>" data-host="<%= p.hostname || '' %>" data-ctrl="<%= p.controller_name || ('#' + (p.controller_id || '')) %>">
             <td data-label="MAC" class="mono"><%= p.mac_address %></td>
             <td data-label="Hostname"><%= p.hostname || '—' %></td>
             <td data-label="Device">
@@ -85,6 +92,13 @@
         </tbody>
       </table>
     </div>
+    <% if (group.length > APPROVALS_PAGE_SIZE) { %>
+    <div class="rule-group__more" data-more>
+      <button class="btn btn--sm" type="button" data-more-btn>
+        Tampilkan <%= group.length - APPROVALS_PAGE_SIZE %> lainnya
+      </button>
+    </div>
+    <% } %>
   </section>
   <% }) %>
   <% } %>
