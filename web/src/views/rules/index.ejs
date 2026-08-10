@@ -83,7 +83,7 @@
     <table class="data stackable">
       <thead>
         <tr>
-          <th>MAC</th><th>SSID</th><th>Scope</th><th>Status</th>
+          <th>MAC</th><th>Hostname</th><th>SSID</th><th>Scope</th><th>Status</th>
           <th>Pemilik</th><th>Perangkat</th><th>Terakhir terlihat</th><th class="actions">Aksi</th>
         </tr>
       </thead>
@@ -94,6 +94,7 @@
             <%= r.mac_address %>
             <% const rv = vendorOf(r.mac_address); if (rv) { %><br><span class="card__hint"><%= rv %></span><% } %>
           </td>
+          <td data-label="Hostname"><%= r.hostname || '—' %></td>
           <td data-label="SSID">
             <%= r.ssid_name %>
             <% if (r.ssid_group_id) { %>

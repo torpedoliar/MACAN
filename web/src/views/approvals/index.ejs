@@ -38,16 +38,16 @@
   <div class="table-wrap">
     <table class="data stackable">
       <thead>
-        <tr><th>MAC</th><th>Device</th><th>SSID</th><th>Controller</th><th class="num">Percobaan</th><th>Terakhir</th><th class="actions">Keputusan</th></tr>
+        <tr><th>MAC</th><th>Hostname</th><th>Device</th><th>SSID</th><th>Controller</th><th class="num">Percobaan</th><th>Terakhir</th><th class="actions">Keputusan</th></tr>
       </thead>
       <tbody>
         <% pending.forEach(p => { %>
         <tr>
           <td data-label="MAC" class="mono"><%= p.mac_address %></td>
+          <td data-label="Hostname"><%= p.hostname || '—' %></td>
           <td data-label="Device">
             <% const vendor = vendorOf(p.mac_address); %>
-            <% if (p.hostname) { %><span><%= p.hostname %></span><br><% } %>
-            <% if (vendor) { %><span class="card__hint"><%= vendor %></span><% } else if (!p.hostname) { %>—<% } %>
+            <% if (vendor) { %><span class="card__hint"><%= vendor %></span><% } else { %>—<% } %>
           </td>
           <td data-label="SSID"><%= p.ssid_name %></td>
           <td data-label="Controller">
