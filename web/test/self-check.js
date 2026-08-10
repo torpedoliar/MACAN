@@ -375,6 +375,10 @@ const CASES = {
     counts: { controllers: 1, ssids: 2, ssid_groups: 1, ssid_group_members: 2, mac_rules: 3, device_hosts: 5, settings: 12 },
     staged: { generated_at: now, rows: [{ table: 'controllers', incoming: 1, current: 1 }] },
     error: 'e', notice: 'n'
+  },
+  'about/index': {
+    GIT_URL: 'https://github.com/torpedoliar',
+    AUTHOR: 'Yohanes Octavian Rizky'
   }
 };
 

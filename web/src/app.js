@@ -141,6 +141,7 @@ app.use('/sessions', requireAdmin, require('./routes/sessions'));
 app.use('/audit', requireAdmin, require('./routes/audit'));
 app.use('/data', requireAdmin, require('./routes/data'));
 app.use('/admins', requireAdmin, require('./routes/admins'));
+app.use('/about', requireAdmin, require('./routes/about'));
 
 app.use((req, res) => res.status(404).render('error', {
   status: 404,

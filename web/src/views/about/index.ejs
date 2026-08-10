@@ -1,0 +1,84 @@
+<%- include('/partials/head', { title: 'About' }) %>
+
+<section class="about">
+  <div class="about__hero">
+    <pre class="ascii-art" aria-label="MACan logo ASCII art" role="img">███╗   ███╗ █████╗  ██████╗ █████╗ ███╗   ██╗
+████╗ ████║██╔══██╗██╔════╝██╔══██╗████╗  ██║
+██╔████╔██║███████║██║     ███████║██╔██╗ ██║
+██║╚██╔╝██║██╔══██║██║     ██╔══██║██║╚██╗██║
+██║ ╚═╝ ██║██║  ██║╚██████╗██║  ██║██║ ╚████║
+╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝
+
+       MAC ADDRESS AUTHENTICATION
+              RADIUS • UNIFI</pre>
+  </div>
+
+  <section class="card">
+    <div class="card__body about__intro">
+      <h2>MACan — MAC Authentication Network</h2>
+      <p>
+        Panel web untuk mengelola autentikasi MAC address di FreeRADIUS + UniFi.
+        Satu tempat untuk mendaftar MAC, mengatur boleh/tidak per SSID,
+        mengaktifkan SSID, melihat sesi online, dan menelusuri setiap
+        keputusan autentikasi — tanpa sertifikat, tanpa supplicant, tanpa
+        menyentuh config FreeRADIUS secara manual.
+      </p>
+      <p class="card__hint">
+        Fail-closed by default. Setiap keputusan tercatat. Per SSID, bukan per site.
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head"><h2>Fitur</h2></div>
+    <div class="card__body">
+      <ul class="about__list">
+        <li><strong>MAC Rules</strong> — allow / deny / disabled per SSID, global atau per controller.</li>
+        <li><strong>Approval</strong> — MAC ditolak karena belum punya rule, satu klik jadi allow. Dikelompokkan per SSID, dengan pencarian.</li>
+        <li><strong>Grup SSID</strong> — satu rule untuk seluruh anggota grup.</li>
+        <li><strong>Sesi Online</strong> — dari paket accounting, identitas dari rule cocok.</li>
+        <li><strong>Auth &amp; Audit Log</strong> — accept/reject + alasan + jejak siapa-mengubah-apa-kapan.</li>
+        <li><strong>Notifikasi</strong> — Telegram / webhook untuk lonjakan reject, SSID baru, pending approval.</li>
+        <li><strong>UniFi Sync</strong> — hostname device dari UniFi API (online + offline), cache per MAC.</li>
+        <li><strong>OUI Vendor Lookup</strong> — identifikasi vendor dari 6-hex prefix MAC.</li>
+        <li><strong>Backup &amp; Restore</strong> — JSON, restore 3 langkah dengan konfirmasi ketik.</li>
+        <li><strong>Mode Maintenance</strong> — satu klik, tolak auth baru + 503 perubahan data.</li>
+        <li><strong>Import/Export CSV</strong> — bulk rule, dengan konvensi <code class="mono">group:Nama</code>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head"><h2>Stack</h2></div>
+    <div class="card__body">
+      <ul class="about__list about__list--cols">
+        <li><strong>RADIUS</strong> — FreeRADIUS 3.2</li>
+        <li><strong>DB</strong> — MariaDB 11</li>
+        <li><strong>Web</strong> — Node.js 20 + Express</li>
+        <li><strong>Template</strong> — EJS</li>
+        <li><strong>Frontend</strong> — vanilla JS + CSS</li>
+        <li><strong>Deploy</strong> — Docker Compose</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card about__author">
+    <div class="card__body">
+      <div class="about__author-row">
+        <div>
+          <span class="about__author-label">Dibuat oleh</span>
+          <h2 class="about__author-name"><%= AUTHOR %></h2>
+        </div>
+        <a class="btn btn--primary" href="<%= GIT_URL %>" target="_blank" rel="noopener">
+          <svg class="icon" aria-hidden="true"><use href="#i-external"></use></svg>
+          GitHub
+        </a>
+      </div>
+      <p class="card__hint">
+        <a href="<%= GIT_URL %>" target="_blank" rel="noopener"><%= GIT_URL %></a>
+      </p>
+    </div>
+  </section>
+</section>
+
+<%- include('/partials/foot') %>

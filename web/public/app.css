@@ -514,3 +514,51 @@ code.mono { background: var(--surface-2); padding: 1px 5px; border-radius: var(-
   .sidebar, .topbar, .scrim, .btn { display: none !important; }
   .app { padding-left: 0; }
 }
+
+/* ===== about page ========================================================= */
+.about { display: flex; flex-direction: column; gap: var(--s5); }
+.about__hero {
+  display: flex; justify-content: center;
+  padding: var(--s6) var(--s4);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow-x: auto;
+}
+.ascii-art {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: clamp(.42rem, 1.6vw, .7rem);
+  line-height: 1.15;
+  letter-spacing: 0;
+  color: var(--accent);
+  white-space: pre;
+  text-align: center;
+}
+.about__intro h2 { margin-bottom: var(--s3); }
+.about__intro p { margin: 0 0 var(--s3); max-width: 68ch; line-height: 1.6; }
+.about__list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s2); }
+.about__list li { font-size: .92rem; color: var(--text-muted); line-height: 1.5; }
+.about__list li strong { color: var(--text); font-weight: 600; }
+.about__list--cols {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s3);
+}
+.about__list--cols li {
+  padding: var(--s3) var(--s4);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+.about__list--cols li strong { display: block; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: var(--s1); }
+.about__list--cols li strong + text { color: var(--text); }
+.about__author-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s4); flex-wrap: wrap;
+}
+.about__author-label {
+  display: block; font-size: .72rem; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-faint); margin-bottom: var(--s1);
+}
+.about__author-name { margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
+@media (max-width: 640px) {
+  .ascii-art { font-size: .42rem; }
+  .about__hero { padding: var(--s4) var(--s2); }
+}
