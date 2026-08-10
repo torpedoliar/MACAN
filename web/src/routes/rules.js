@@ -61,12 +61,22 @@ router.get('/', wrap(async (req, res) => {
     LEFT JOIN ssid_groups g ON r.ssid_group_id = g.id
     LEFT JOIN (SELECT mac_address, MIN(hostname) AS hostname FROM device_hosts GROUP BY mac_address) h ON h.mac_address = r.mac_address
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-    ORDER BY r.updated_at DESC
+    ORDER BY r.ssid_name, r.created_at DESC
     LIMIT 500
   `, params);
+  // Group per SSID, urut abjad — tampilan /rules jadi per-jaringan. Filter
+  // aktif (q/status/controller) dipertahankan; kalau filter dipakai, grouping
+  // tetap jalan cuma hasilnya sudah dipersempit.
+  const rulesBySsid = rules.reduce((acc, r) => {
+    const key = r.ssid_name || '(tanpa SSID)';
+    (acc[key] = acc[key] || []).push(r);
+    return acc;
+  }, {});
   const controllers = await query('SELECT id, name FROM controllers ORDER BY name');
   res.render('rules/index', {
     rules,
+    rulesBySsid,
+    ssids: Object.keys(rulesBySsid).sort(),
     controllers,
     filters: { q: q || '', status: status || '', controller_id: controller_id || '' },
     imported: req.query.imported,
