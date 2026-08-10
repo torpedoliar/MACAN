@@ -300,6 +300,19 @@ a:hover { text-decoration: underline; }
   font-size: .95rem; font-weight: 600; letter-spacing: -.01em;
 }
 .rule-group__head .badge { margin-left: auto; }
+.rule-group__subhead {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s2) var(--s5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: .82rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-muted); cursor: pointer;
+}
+.rule-group__subhead:hover { background: var(--surface-2); }
+.rule-group__subhead .badge { margin-left: auto; }
+.rule-group__subhead--allow { color: var(--success); }
+details.rule-group__details > summary { list-style: none; }
+details.rule-group__details > summary::-webkit-details-marker { display: none; }
 /* ===== stat tiles (Swiss KPI) ============================================ */
 .stats { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .stat {
