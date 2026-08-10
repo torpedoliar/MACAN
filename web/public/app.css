@@ -362,6 +362,9 @@ table.data td.actions form { display: inline; }
 .badge--deny, .badge--reject, .badge--off { background: var(--danger-soft); color: var(--danger); }
 .badge--disabled { background: var(--warning-soft); color: var(--warning); }
 .badge--info { background: var(--info-soft); color: var(--info); }
+/* Scope cell: the "grup:" badge holds a group name that must not clip. .badge
+   defaults to nowrap, so opt the scope badges back into wrapping. */
+table.data td[data-label="Scope"] .badge { white-space: normal; text-transform: none; }
 .badge--accent { background: var(--accent-soft); color: var(--accent); }
 .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 /* ===== forms ============================================================= */

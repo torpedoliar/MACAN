@@ -116,7 +116,7 @@
               <% if (r.controller_id) { %><%= r.controller_name || ('#' + r.controller_id) %><% } else { %>
               <span class="badge badge--accent">Global</span><% } %>
               <% if (r.ssid_group_id) { %>
-              <span class="badge badge--info" title="Dipasang lewat grup SSID <%= r.group_name || ('#' + r.ssid_group_id) %>">grup</span>
+              <span class="badge badge--info" title="Dipasang lewat grup SSID <%= r.group_name || ('#' + r.ssid_group_id) %>">grup: <%= r.group_name || ('#' + r.ssid_group_id) %></span>
               <% } %>
             </td>
             <td data-label="Status">
@@ -173,7 +173,7 @@
                 <% if (r.controller_id) { %><%= r.controller_name || ('#' + r.controller_id) %><% } else { %>
                 <span class="badge badge--accent">Global</span><% } %>
                 <% if (r.ssid_group_id) { %>
-                <span class="badge badge--info" title="Dipasang lewat grup SSID <%= r.group_name || ('#' + r.ssid_group_id) %>">grup</span>
+                <span class="badge badge--info" title="Dipasang lewat grup SSID <%= r.group_name || ('#' + r.ssid_group_id) %>">grup: <%= r.group_name || ('#' + r.ssid_group_id) %></span>
                 <% } %>
               </td>
               <td data-label="Status">
