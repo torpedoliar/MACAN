@@ -56,20 +56,46 @@ function apiGet(host, path, apiKey, verifyTls) {
 
 // Classic controller API (cookie login). Endpoint prefix on UniFi OS:
 //   https://<host>/proxy/network/api/s/<site>/...
-// Login: POST /api/auth/login (UDM Pro/UCG path) → Set-Cookie session. Unlike
-// integration v1 this returns ALL configured clients (offline included), so it
-// fills the gap X-API-KEY leaves (online-only). Unofficial but stable surface.
+// Login returns ALL configured clients (offline included), so it fills the gap
+// X-API-KEY leaves (online-only). Unofficial but stable surface.
 // ponytail: manual Set-Cookie parse, no cookie-jar dep. Cukup untuk 1 login + N
 // GET per sync; tough-cookie only if session refresh/expiry gets complex.
-function apiClassicLogin(host, username, password, verifyTls) {
+//
+// Login path differs across the UniFi family:
+//   - UniFi OS (UDM, Dream Machine, UCG -UCKG, CloudKey G2+): /api/auth/login
+//   - Legacy controller-native (CloudKey G1 / direct controller): /api/login
+// Try UniFi OS first, then fall back to the classic path. A device may 404/405
+// on the path it doesn't serve, or return no cookie on a bad-shape body — both
+// are retried on the other endpoint before giving up. 2FA/system-pin stays a
+// hard failure (propagates as `err.userCode === 'ERR_AUTH_FAILED'`).
+async function apiClassicLogin(host, username, password, verifyTls) {
+  let lastErr;
+  // body[username] ommitted when empty: a UDM configured with a single
+  // super-admin (no username shown at login) still needs username 'admin'.
+  const payloads = [
+    { path: '/api/auth/login', body: JSON.stringify({ username: username || 'admin', password, remember: true }) },
+    { path: '/api/login', body: JSON.stringify({ username: username || 'admin', password }) }
+  ];
+  for (const { path, body } of payloads) {
+    try { return await classicLoginOnce(host, path, body, verifyTls); }
+    catch (err) {
+      lastErr = err;
+      // 401/403 = wrong credentials — not a path/shape mismatch, don't try the
+      // other endpoint (it would just re-fail auth and mask the real cause).
+      if (err.statusCode === 401 || err.statusCode === 403) break;
+    }
+  }
+  throw lastErr;
+}
+
+function classicLoginOnce(host, path, body, verifyTls) {
   return new Promise((resolve, reject) => {
     let base;
     try { base = new URL(host); }
     catch { return reject(new Error('unifi_host URL tidak valid')); }
-    const full = new URL('/api/auth/login', base);
+    const full = new URL(path, base);
     const isHttps = full.protocol === 'https:';
     const lib = isHttps ? https : require('http');
-    const body = JSON.stringify({ username, password, remember: true });
     const req = lib.request(full, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Content-Length': Buffer.byteLength(body) },
@@ -78,7 +104,9 @@ function apiClassicLogin(host, username, password, verifyTls) {
     }, res => {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume();
-        return reject(new Error(`login HTTP ${res.statusCode}`));
+        const err = new Error(`login HTTP ${res.statusCode}`);
+        err.statusCode = res.statusCode;
+        return reject(err);
       }
       const cookies = (res.headers['set-cookie'] || []).map(c => c.split(';')[0]).filter(Boolean);
       const csrf = res.headers['x-csrf-token'] || '';
