@@ -297,6 +297,11 @@ const CASES = {
               controller_name: null, status: 'allow', owner_name: 'B', device_name: 'D',
               note: 'n', updated_at: now, last_seen_at: now, ssid_group_id: 1, group_name: 'Karyawan',
               hostname: null }],
+    rulesBySsid: { 'S': [{ id: 1, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: null,
+              controller_name: null, status: 'allow', owner_name: 'B', device_name: 'D',
+              note: 'n', updated_at: now, last_seen_at: now, ssid_group_id: 1, group_name: 'Karyawan',
+              hostname: null }] },
+    ssids: ['S'],
     controllers: [{ id: 1, name: 'C' }], filters: { q: '', status: '', controller_id: '' },
     imported: '3', skipped: '1', error: 'e'
   },
@@ -305,6 +310,9 @@ const CASES = {
   'approvals/index': {
     pending: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
                 controller_name: 'C', last_seen: now, hit_count: 3, hostname: null }],
+    pendingBySsid: { 'S': [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
+                controller_name: 'C', last_seen: now, hit_count: 3, hostname: null }] },
+    ssids: ['S'],
     error: 'e', approved: '1'
   },
   'controllers/index': {

@@ -14,8 +14,17 @@ const clean = v => {
 
 router.get('/', wrap(async (req, res) => {
   const pending = await query(PENDING_LIST);
+  // Kelompokkan per SSID — pola yang sama dengan /rules. Filter active
+  // tetap dipertahankan; grouping cuma menyusun ulang tampilan.
+  const pendingBySsid = pending.reduce((acc, p) => {
+    const key = p.ssid_name || '(tanpa SSID)';
+    (acc[key] = acc[key] || []).push(p);
+    return acc;
+  }, {});
   res.render('approvals/index', {
     pending,
+    pendingBySsid,
+    ssids: Object.keys(pendingBySsid).sort(),
     error: req.query.error,
     approved: req.query.approved
   });

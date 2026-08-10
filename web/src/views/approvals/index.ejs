@@ -31,54 +31,62 @@
   <% } else { %>
   <div class="card__body" style="padding-bottom:0">
     <p class="card__hint">
-      <%= pending.length %> perangkat ditolak dan belum punya rule.
+      <%= pending.length %> perangkat ditolak dan belum punya rule. Terbagi per SSID (jaringan).
       Allow membuat rule izin, Deny membuat rule tolak permanen sehingga hilang dari daftar ini.
     </p>
   </div>
-  <div class="table-wrap">
-    <table class="data stackable">
-      <thead>
-        <tr><th>MAC</th><th>Hostname</th><th>Device</th><th>SSID</th><th>Controller</th><th class="num">Percobaan</th><th>Terakhir</th><th class="actions">Keputusan</th></tr>
-      </thead>
-      <tbody>
-        <% pending.forEach(p => { %>
-        <tr>
-          <td data-label="MAC" class="mono"><%= p.mac_address %></td>
-          <td data-label="Hostname"><%= p.hostname || '—' %></td>
-          <td data-label="Device">
-            <% const vendor = vendorOf(p.mac_address); %>
-            <% if (vendor) { %><span class="card__hint"><%= vendor %></span><% } else { %>—<% } %>
-          </td>
-          <td data-label="SSID"><%= p.ssid_name %></td>
-          <td data-label="Controller">
-            <% if (p.controller_id) { %><%= p.controller_name || ('#' + p.controller_id) %>
-            <% } else { %><span class="badge">tidak dikenal</span><% } %>
-          </td>
-          <td data-label="Percobaan" class="num"><%= p.hit_count %></td>
-          <td data-label="Terakhir" class="num"><%= fmt(p.last_seen) %></td>
-          <td data-label="Keputusan" class="actions">
-            <% ['allow', 'deny'].forEach(decision => { %>
-            <form action="/approvals" method="POST"
-                  data-confirm="<%= decision === 'allow' ? 'Izinkan' : 'Tolak permanen' %> <%= p.mac_address %> di SSID <%= p.ssid_name %>?">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <input type="hidden" name="mac_address" value="<%= p.mac_address %>">
-              <input type="hidden" name="ssid_name" value="<%= p.ssid_name %>">
-              <input type="hidden" name="controller_id" value="<%= p.controller_id || '' %>">
-              <input type="hidden" name="scope" value="<%= p.controller_id ? 'controller' : 'global' %>">
-              <input type="hidden" name="status" value="<%= decision %>">
-              <% if (p.hostname) { %><input type="hidden" name="device_name" value="<%= p.hostname %>"><% } %>
-              <button class="btn btn--sm <%= decision === 'allow' ? 'btn--primary' : 'btn--danger' %>" type="submit">
-                <svg class="icon" aria-hidden="true"><use href="#<%= decision === 'allow' ? 'i-check' : 'i-x-circle' %>"></use></svg>
-                <%= decision === 'allow' ? 'Allow' : 'Deny' %>
-              </button>
-            </form>
-            <% }) %>
-          </td>
-        </tr>
-        <% }) %>
-      </tbody>
-    </table>
-  </div>
+  <% ssids.forEach(ssid => { const group = pendingBySsid[ssid]; %>
+  <section class="rule-group">
+    <h3 class="rule-group__head">
+      <svg class="icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
+      <%= ssid %>
+      <span class="badge"><%= group.length %> pending</span>
+    </h3>
+    <div class="table-wrap">
+      <table class="data stackable">
+        <thead>
+          <tr><th>MAC</th><th>Hostname</th><th>Device</th><th>Controller</th><th class="num">Percobaan</th><th>Terakhir</th><th class="actions">Keputusan</th></tr>
+        </thead>
+        <tbody>
+          <% group.forEach(p => { %>
+          <tr>
+            <td data-label="MAC" class="mono"><%= p.mac_address %></td>
+            <td data-label="Hostname"><%= p.hostname || '—' %></td>
+            <td data-label="Device">
+              <% const vendor = vendorOf(p.mac_address); %>
+              <% if (vendor) { %><span class="card__hint"><%= vendor %></span><% } else { %>—<% } %>
+            </td>
+            <td data-label="Controller">
+              <% if (p.controller_id) { %><%= p.controller_name || ('#' + p.controller_id) %>
+              <% } else { %><span class="badge">tidak dikenal</span><% } %>
+            </td>
+            <td data-label="Percobaan" class="num"><%= p.hit_count %></td>
+            <td data-label="Terakhir" class="num"><%= fmt(p.last_seen) %></td>
+            <td data-label="Keputusan" class="actions">
+              <% ['allow', 'deny'].forEach(decision => { %>
+              <form action="/approvals" method="POST"
+                    data-confirm="<%= decision === 'allow' ? 'Izinkan' : 'Tolak permanen' %> <%= p.mac_address %> di SSID <%= p.ssid_name %>?">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="mac_address" value="<%= p.mac_address %>">
+                <input type="hidden" name="ssid_name" value="<%= p.ssid_name %>">
+                <input type="hidden" name="controller_id" value="<%= p.controller_id || '' %>">
+                <input type="hidden" name="scope" value="<%= p.controller_id ? 'controller' : 'global' %>">
+                <input type="hidden" name="status" value="<%= decision %>">
+                <% if (p.hostname) { %><input type="hidden" name="device_name" value="<%= p.hostname %>"><% } %>
+                <button class="btn btn--sm <%= decision === 'allow' ? 'btn--primary' : 'btn--danger' %>" type="submit">
+                  <svg class="icon" aria-hidden="true"><use href="#<%= decision === 'allow' ? 'i-check' : 'i-x-circle' %>"></use></svg>
+                  <%= decision === 'allow' ? 'Allow' : 'Deny' %>
+                </button>
+              </form>
+              <% }) %>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <% }) %>
   <% } %>
 </section>
 
