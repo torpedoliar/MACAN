@@ -69,6 +69,28 @@ router.post('/:id/members', wrap(async (req, res) => {
   ));
 }));
 
+// Rename a group. Pure rename is safe w.r.t. members/rules: ssid_group_members
+// keys by ssid_name (not group name) and mac_rules.ssid_group_id points to the
+// group *id*, which never changes — so no syncGroup re-expansion is needed.
+router.post('/:id/rename', wrap(async (req, res) => {
+  const name = clean(req.body.name);
+  if (!name) return res.redirect('/ssid-groups?error=' + encodeURIComponent('Nama grup wajib diisi.'));
+  const groups = await query('SELECT * FROM ssid_groups WHERE id = ?', [req.params.id]);
+  if (!groups.length) return res.redirect('/ssid-groups?error=' + encodeURIComponent('Grup tidak ditemukan.'));
+  const group = groups[0];
+  try {
+    await query('UPDATE ssid_groups SET name = ? WHERE id = ?', [name, group.id]);
+    await writeAudit(req.session.admin.id, 'ssid_group_rename',
+      { id: group.id, from: group.name, to: name });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
+      return res.redirect('/ssid-groups?error=' + encodeURIComponent(`Grup "${name}" sudah ada.`));
+    }
+    throw err;
+  }
+  res.redirect('/ssid-groups?notice=' + encodeURIComponent(`Grup "${group.name}" diganti menjadi "${name}".`));
+}));
+
 router.post('/:id/delete', wrap(async (req, res) => {
   const groups = await query('SELECT * FROM ssid_groups WHERE id = ?', [req.params.id]);
   if (!groups.length) return res.redirect('/ssid-groups');

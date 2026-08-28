@@ -2,8 +2,10 @@ CREATE TABLE admins (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  -- Disabling beats deleting: audit_logs.fk_audit_admin blocks removing an
-  -- account that has history, so revoking access has to be a flag.
+  -- Deleting an admin is now allowed: audit_logs.fk_audit_admin uses ON DELETE
+  -- SET NULL (db/schema.sql, audit_logs) so history is kept with admin_id NULL,
+  -- and migrate.js step 15 applies the same rule to existing installs. Disabling
+  -- stays available as a non-destructive alternative.
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -146,7 +148,7 @@ CREATE TABLE audit_logs (
   ip_address VARCHAR(45) NULL,
   details JSON NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES admins(id)
+  CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE SET NULL
 );
 
 CREATE TABLE settings (

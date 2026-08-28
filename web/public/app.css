@@ -471,6 +471,20 @@ details summary {
 }
 details summary:hover { color: var(--text); }
 details[open] summary { margin-bottom: var(--s3); }
+/* Inline rename in a group header: details-as-popover, no border/margin from
+   the generic details rule above. */
+.inline-edit { border: 0; padding: 0; margin: 0; position: relative; }
+.inline-edit > summary { list-style: none; }
+.inline-edit > summary::-webkit-details-marker { display: none; }
+.inline-edit[open] > summary { margin-bottom: 0; }
+.inline-edit__form {
+  position: absolute; right: 0; top: calc(100% + var(--s1)); z-index: 5;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  padding: var(--s3); min-width: 260px;
+}
+.inline-edit__row { display: flex; gap: var(--s2); margin-top: var(--s1); }
+.inline-edit__row input { flex: 1; min-width: 0; }
 ol, ul { margin: 0 0 var(--s3); padding-left: var(--s5); }
 li + li { margin-top: var(--s1); }
 code.mono { background: var(--surface-2); padding: 1px 5px; border-radius: var(--radius-sm); }

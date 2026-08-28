@@ -25,7 +25,7 @@ function isDuplicate(err) {
 }
 
 router.get('/', wrap(async (req, res) => {
-  const { q, status, controller_id } = req.query;
+  const { q, status, controller_id, ssid } = req.query;
   const where = [];
   const params = [];
   if (q) {
@@ -54,6 +54,12 @@ router.get('/', wrap(async (req, res) => {
     where.push('r.controller_id = ?');
     params.push(controller_id);
   }
+  if (ssid) {
+    // Exact match — a LIKE would wrongly match "Office-WiFi-5G" when filtering
+    // "Office-WiFi". SSID names are an admin-chosen label, so exact is right.
+    where.push('r.ssid_name = ?');
+    params.push(ssid);
+  }
   const rules = await query(`
     SELECT r.*, c.name AS controller_name, g.name AS group_name, h.hostname
     FROM mac_rules r
@@ -73,12 +79,17 @@ router.get('/', wrap(async (req, res) => {
     return acc;
   }, {});
   const controllers = await query('SELECT id, name FROM controllers ORDER BY name');
+  // Dropdown SSID selalu dari semua rule (DISTINCT), bukan dari rulesBySsid hasil
+  // filter — kalau dari hasil filter, dropdown menyusut ke satu opsi begitu
+  // filter SSID dipilih, dan tak ada jalan untuk pindah ke SSID lain.
+  const ssidRows = await query('SELECT DISTINCT ssid_name FROM mac_rules ORDER BY ssid_name');
   res.render('rules/index', {
     rules,
     rulesBySsid,
     ssids: Object.keys(rulesBySsid).sort(),
     controllers,
-    filters: { q: q || '', status: status || '', controller_id: controller_id || '' },
+    filters: { q: q || '', status: status || '', controller_id: controller_id || '', ssid: ssid || '' },
+    ssidOptions: ssidRows.map(r => r.ssid_name),
     imported: req.query.imported,
     skipped: req.query.skipped,
     error: req.query.error

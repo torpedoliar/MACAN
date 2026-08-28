@@ -35,14 +35,31 @@
           <span class="badge badge--accent"><%= g.member_count %> SSID</span>
           <span class="badge"><%= g.rule_count %> rule</span>
         </h3>
-        <form action="/ssid-groups/<%= g.id %>/delete" method="POST"
-              data-confirm="Hapus grup <%= g.name %>? Rule yang sudah terpasang tetap berlaku.">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button class="btn btn--sm btn--danger" type="submit">
-            <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
-            Hapus grup
-          </button>
-        </form>
+        <div class="btn-row">
+          <details class="inline-edit">
+            <summary class="btn btn--sm" type="button">
+              <svg class="icon" aria-hidden="true"><use href="#i-edit"></use></svg>
+              Ganti nama
+            </summary>
+            <form action="/ssid-groups/<%= g.id %>/rename" method="POST" class="inline-edit__form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <label class="field__label" for="rename-<%= g.id %>">Nama baru</label>
+              <div class="inline-edit__row">
+                <input type="text" id="rename-<%= g.id %>" name="name" value="<%= g.name %>"
+                       required maxlength="120">
+                <button class="btn btn--primary btn--sm" type="submit">Simpan</button>
+              </div>
+            </form>
+          </details>
+          <form action="/ssid-groups/<%= g.id %>/delete" method="POST"
+                data-confirm="Hapus grup <%= g.name %>? Rule yang sudah terpasang tetap berlaku.">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button class="btn btn--sm btn--danger" type="submit">
+              <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
+              Hapus grup
+            </button>
+          </form>
+        </div>
       </div>
       <% if (g.note) { %><p class="card__hint"><%= g.note %></p><% } %>
 

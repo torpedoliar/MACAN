@@ -91,4 +91,28 @@ router.get('/:id/edit', wrap(async (req, res) => {
 
 router.post('/:id', wrap((req, res) => save(req, res, req.params.id)));
 
+// Delete an admin account. Guardians: self and the last enabled admin are
+// undeletable (mirrors the disable guards at line 51/54). Audit history for the
+// deleted account survives — fk_audit_admin is ON DELETE SET NULL, so its rows
+// keep the action/IP but admin_id becomes NULL ("deleted admin").
+router.post('/:id/delete', wrap(async (req, res) => {
+  const bail = msg => res.redirect('/admins?error=' + encodeURIComponent(msg));
+  // Cannot delete yourself — no undo, and it would lock the session out.
+  if (Number(req.params.id) === Number(req.session.admin.id)) {
+    return bail('Tidak bisa menghapus akun Anda sendiri.');
+  }
+  // Cannot delete the last active admin — it would lock everyone out.
+  const others = await query('SELECT COUNT(*) AS count FROM admins WHERE enabled = 1 AND id <> ?', [req.params.id]);
+  if (!Number(others[0].count)) {
+    return bail('Ini satu-satunya admin aktif. Aktifkan admin lain dulu sebelum menghapus yang ini.');
+  }
+  const rows = await query('SELECT email FROM admins WHERE id = ?', [req.params.id]);
+  if (!rows.length) return bail('Admin tidak ditemukan.');
+  // Audit BEFORE the delete so the acting admin is preserved on the row (the
+  // target's own prior rows get NULL via SET NULL — intended).
+  await writeAudit(req.session.admin.id, 'admin_delete', { id: req.params.id, email: rows[0].email });
+  await query('DELETE FROM admins WHERE id = ?', [req.params.id]);
+  res.redirect('/admins?notice=' + encodeURIComponent('Akun ' + rows[0].email + ' dihapus. Riwayat audit tetap utuh sebagai "deleted admin".'));
+}));
+
 module.exports = router;

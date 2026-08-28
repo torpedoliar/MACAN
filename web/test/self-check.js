@@ -302,7 +302,8 @@ const CASES = {
               note: 'n', updated_at: now, last_seen_at: now, ssid_group_id: 1, group_name: 'Karyawan',
               hostname: null }] },
     ssids: ['S'],
-    controllers: [{ id: 1, name: 'C' }], filters: { q: '', status: '', controller_id: '' },
+    controllers: [{ id: 1, name: 'C' }], filters: { q: '', status: '', controller_id: '', ssid: '' },
+    ssidOptions: ['S'],
     imported: '3', skipped: '1', error: 'e'
   },
   'rules/form': { rule: {}, controllers: [{ id: 1, name: 'C' }],

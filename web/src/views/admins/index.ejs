@@ -52,6 +52,16 @@
               <svg class="icon" aria-hidden="true"><use href="#i-edit"></use></svg>
               Edit
             </a>
+            <% if (Number(a.id) !== Number(admin.id)) { %>
+            <form action="/admins/<%= a.id %>/delete" method="POST"
+                  data-confirm="Hapus admin <%= a.email %>? Riwayat audit tetap utuh sebagai 'deleted admin'.">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="btn btn--sm btn--danger" type="submit">
+                <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
+                Hapus
+              </button>
+            </form>
+            <% } %>
           </td>
         </tr>
         <% }) %>
@@ -61,9 +71,9 @@
   <div class="card__body">
     <div class="alert alert--info" role="note" style="margin:0">
       <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
-      <div>Akun admin tidak bisa dihapus — jejak di <a href="/audit">Audit</a> merujuk ke akunnya.
-        Untuk mencabut akses, buka Edit lalu hilangkan tanda <strong>Aktif</strong>. Admin nonaktif
-        langsung tidak bisa login, tapi riwayatnya tetap utuh.</div>
+      <div>Menghapus akun menghilangkan akses dan menjaga <a href="/audit">Audit</a> tetap utuh
+        (admin_id jadi kosong, tertulis "deleted admin"). Untuk sekadar mencabut akses, buka Edit
+        lalu hilangkan tanda <strong>Aktif</strong>.</div>
     </div>
   </div>
 </section>

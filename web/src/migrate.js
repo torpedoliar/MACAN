@@ -55,8 +55,9 @@ async function migrate() {
   await raw('ALTER TABLE mac_rules ADD COLUMN IF NOT EXISTS inactive_since TIMESTAMP NULL AFTER last_seen_at');
   await raw('ALTER TABLE mac_rules ADD KEY IF NOT EXISTS idx_rules_last_seen (last_seen_at)');
 
-  // 6. Per-admin accounts. Revoking access is a flag, not a DELETE:
-  //    audit_logs.fk_audit_admin refuses to drop an admin that has history.
+  // 6. Per-admin accounts. Revoking access is a flag — until step 15 made
+  //    deletion viable (admin_id is nullable, FK is ON DELETE SET NULL),
+  //    disabling was the only way to revoke an admin with audit history.
   await raw('ALTER TABLE admins ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE AFTER password_hash');
 
   // 7. Rule lookup index. Every Access-Request runs
@@ -129,6 +130,15 @@ async function migrate() {
   //     (offline included). Integration v1 (X-API-KEY) cuma return online.
   await raw('ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_username VARCHAR(160) NULL AFTER unifi_verify_tls');
   await raw('ALTER TABLE controllers ADD COLUMN IF NOT EXISTS unifi_password VARCHAR(255) NULL AFTER unifi_username');
+
+  // 15. Deleting an admin account. The old FK refused it once the account had
+  //     audit history, so revoking access could only be a disable flag. admin_id
+  //     is already nullable, so the deletion now propagates to audit_logs via
+  //     SET NULL — the log survives as "deleted admin", and the UI can delete.
+  //     Db/schema.sql:151 says "Does MariaDB support DROP FOREIGN KEY IF EXISTS?"
+  //     — yes, since 10.x / it's the same family the dump targets.
+  await raw('ALTER TABLE audit_logs DROP FOREIGN KEY IF EXISTS fk_audit_admin');
+  await raw('ALTER TABLE audit_logs ADD CONSTRAINT fk_audit_admin FOREIGN KEY IF NOT EXISTS (admin_id) REFERENCES admins(id) ON DELETE SET NULL');
 
   // 9. Grup SSID. Rule yang menargetkan grup tetap disimpan sebagai satu baris
   //    mac_rules per anggota grup, jadi radius/default.conf tidak berubah sama

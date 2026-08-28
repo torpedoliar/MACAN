@@ -59,6 +59,15 @@
           <% }) %>
         </select>
       </div>
+      <div class="field">
+        <label class="field__label" for="f-ssid">SSID</label>
+        <select id="f-ssid" name="ssid">
+          <option value="">Semua</option>
+          <% (typeof ssidOptions !== 'undefined' ? ssidOptions : []).forEach(s => { %>
+          <option value="<%= s %>" <%= String((filters && filters.ssid) || '') === String(s) ? 'selected' : '' %>><%= s %></option>
+          <% }) %>
+        </select>
+      </div>
       <div class="filters__actions">
         <button class="btn btn--primary" type="submit">
           <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
@@ -81,7 +90,7 @@
   <% } else { %>
   <div class="card__body" style="padding-bottom:0">
     <p class="card__hint">Terbagi per SSID (jaringan). <%= rules.length %> rule (maksimal 500 per halaman).
-      <% if (filters.q || filters.status || filters.controller_id) { %>Filter aktif — persempit atau reset untuk melihat semua.<% } %></p>
+      <% if (filters.q || filters.status || filters.controller_id || filters.ssid) { %>Filter aktif — persempit atau reset untuk melihat semua.<% } %></p>
   </div>
   <% ssids.forEach(ssid => { const group = rulesBySsid[ssid];
        const allow = group.filter(r => r.status === 'allow');
