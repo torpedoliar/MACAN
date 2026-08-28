@@ -115,12 +115,21 @@
     // Initial paged render.
     groups.forEach(function (group) { applyPaging(group, false); });
 
-    // "Tampilkan lainnya" — reveal all rows in that group.
+    // "Tampilkan lainnya" — reveal all rows in that group. This is NOT
+    // applyPaging(group, true): applyPaging only touches rows that are already
+    // visible (visibleRows), so it would re-show the first pageSize rows and
+    // leave the rest hidden — the "expand does nothing" bug at >10 rows.
     approvalsCard.addEventListener('click', function (e) {
       var btn = e.target.closest('[data-more-btn]');
       if (!btn) return;
       var group = e.target.closest('.rule-group');
-      if (group) applyPaging(group, true);
+      if (group) {
+        group.querySelectorAll('tbody tr').forEach(function (tr) {
+          tr.style.display = '';
+        });
+        var more = group.querySelector('[data-more]');
+        if (more) more.style.display = 'none';
+      }
     });
 
     // Search — debounce 120ms.
