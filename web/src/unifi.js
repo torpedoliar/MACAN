@@ -9,7 +9,9 @@ const { normalizeMac } = require('./radius-policy');
 // proxy to the Network app). Sites are UUID-keyed here, not the classic 'default'.
 const TIMEOUT = 8000;
 const MAX_BYTES = 8 * 1024 * 1024;
-const PAGE_LIMIT = 1000;
+// UniFi OS caps the /clients page server-side at 200; requesting more is
+// silently clamped, so PAGE_LIMIT must be the server cap, not our ideal.
+const PAGE_LIMIT = 200;
 
 // GET one JSON endpoint with X-API-KEY. rejectUnauthorized is per-controller:
 // UniFi ships a self-signed cert, so verify is opt-in. Never set
@@ -191,11 +193,18 @@ async function syncController(ctrl) {
     const siteId = site.id || site._id;
     if (!siteId) continue;
     let offset = 0;
+    // totalCount ditetapkan ulang per halaman; nilai terakhir dipakai untuk
+    // log diagnostik di bawah (scope: per-site, bukan per-halaman).
+    let totalCount = null;
     // Cap total pages so a runaway loop can't hammer a misbehaving controller.
-    for (let page = 0; page < 100; page++) {
+    // 200/page × 500 = 100,000 devices cap — plenty, and still a runaway guard.
+    for (let page = 0; page < 500; page++) {
       const res = await apiGet(ctrl.unifi_host, `/sites/${encodeURIComponent(siteId)}/clients?limit=${PAGE_LIMIT}&offset=${offset}`,
         ctrl.unifi_api_key, ctrl.unifi_verify_tls);
       const clients = Array.isArray(res) ? res : (res.data || []);
+      // UniFi OS envelope: { offset, limit, count, totalCount, data: [...] }.
+      totalCount = typeof res.totalCount === 'number' ? res.totalCount : null;
+      if (!clients.length) break;
       if (!sample && clients[0]) sample = JSON.stringify(clients[0]).slice(0, 400);
       // Collect rows with a non-empty hostname: a client without a name carries
       // no identity value, and upserting NULL would overwrite a previously-known
@@ -235,12 +244,17 @@ async function syncController(ctrl) {
       }
       synced += rows.length;
       fetched += clients.length;
-      if (clients.length < PAGE_LIMIT) break;
-      offset += PAGE_LIMIT;
+      // Advance by what we actually got back, not by PAGE_LIMIT: a short page
+      // is the end of the list (server clamps to 200), so offset += PAGE_LIMIT
+      // would skip the remainder. totalCount is authoritative when present.
+      if (clients.length < PAGE_LIMIT || (totalCount !== null && offset + clients.length >= totalCount)) break;
+      offset += clients.length;
     }
     // Diagnostic per-site: kalau hostname kosong di UI, output ini tunjukkin
     // kenapa — field mana yang terisi, berapa di-skip, sample client aktual.
-    console.error(`unifi sync ${ctrl.unifi_host} site=${siteId}: fetched=${fetched} name=${withName} hostname=${withHostname} displayName=${withDisplay} synced=${synced} skipped=${skipped} sample=${sample}`);
+    // totalCount ikut dicetak: kalau next sync masih pendek, log ini langsung
+    // bilang apakah server bilang ada N tapi kita cuma baca M.
+    console.error(`unifi sync ${ctrl.unifi_host} site=${siteId}: fetched=${fetched} totalCount=${totalCount} name=${withName} hostname=${withHostname} displayName=${withDisplay} synced=${synced} skipped=${skipped} sample=${sample}`);
   }
   // Classic API (cookie login) untuk ambil semua configured client (offline
   // included) — integration v1 cuma return online. Tahap terpisah supaya
