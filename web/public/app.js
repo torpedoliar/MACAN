@@ -92,11 +92,19 @@
     }
     function refreshGroups() {
       var q = (searchInput ? searchInput.value.trim().toLowerCase() : '');
+      // A MAC typed without colons (or with -/. separators) can't match the
+      // colon-delimited data-mac, so also compare hex-stripped forms — but only
+      // when the query is exactly 12 hex chars, so normal text search stays
+      // untouched (mirrors normalizeMac() in /rules).
+      var qMac = q.replace(/[^0-9a-f]/g, '');
+      var macQuery = qMac.length === 12 ? qMac : null;
       groups.forEach(function (group) {
         var matched = 0;
         group.querySelectorAll('tbody tr').forEach(function (tr) {
+          var mac = tr.dataset.mac.toLowerCase();
           var hit = !q ||
-            tr.dataset.mac.indexOf(q) > -1 ||
+            mac.indexOf(q) > -1 ||
+            (macQuery !== null && mac.replace(/[^0-9a-f]/g, '') === macQuery) ||
             (tr.dataset.host && tr.dataset.host.toLowerCase().indexOf(q) > -1) ||
             (tr.dataset.ctrl && tr.dataset.ctrl.toLowerCase().indexOf(q) > -1);
           tr.style.display = hit ? '' : 'none';
@@ -104,7 +112,13 @@
         });
         // Reset paging per group after a search (show all matches), hide the
         // "more" button text logic to reflect matched count.
-        applyPaging(group, q.length > 0);
+        var more = group.querySelector('[data-more]');
+        // Don't re-collapse a group the user already expanded: its [data-more]
+        // is hidden, so re-applying paging would snap it back to pageSize rows
+        // on search change/clear. Initial (not-yet-expanded) state is unchanged.
+        if (!more || more.style.display !== 'none') {
+          applyPaging(group, q.length > 0);
+        }
         var countEl = group.querySelector('[data-count]');
         if (countEl) countEl.textContent = matched;
         // Hide whole group if nothing matched.
@@ -141,4 +155,20 @@
       });
     }
   }
+
+  // --- /ssid-groups: one rename popover open at a time --------------------
+  // ponytail: a single delegated listener — when a details.inline-edit opens,
+  // close any other one so two popovers can't overlap.
+  document.addEventListener('click', function (e) {
+    var details = e.target.closest('details.inline-edit');
+    if (!details) return;
+    // No open-state check: the browser toggles details.open only AFTER the
+    // click finishes dispatching, so a closed summary still reads open=false
+    // here. Closing others unconditionally is timing-robust (works whether the
+    // click will open or close this details) and harmless when clicking inside
+    // the open popover's own form.
+    document.querySelectorAll('details.inline-edit').forEach(function (other) {
+      if (other !== details) other.open = false;
+    });
+  });
 })();
