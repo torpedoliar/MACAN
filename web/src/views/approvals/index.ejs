@@ -11,28 +11,32 @@
 <% if (approved) { %>
 <div class="alert alert--success" role="status" data-autodismiss>
   <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
-  <div>Rule untuk <span class="mono"><%= approved %></span> tersimpan.</div>
+  <div>Aturan untuk <span class="mono"><%= approved %></span> tersimpan.</div>
 </div>
 <% } %>
 
 <section class="card" id="approvals-card" data-page-size="<%= APPROVALS_PAGE_SIZE %>">
   <div class="card__head">
     <h2>Menunggu keputusan</h2>
-    <div class="btn-row"><a class="btn btn--sm" href="/rules">Semua rule</a></div>
+    <div class="btn-row"><a class="btn btn--sm" href="/rules">Semua aturan</a></div>
   </div>
 
   <% if (!pending.length) { %>
     <div class="card__body empty">
       <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
       <h3>Tidak ada yang menunggu</h3>
-      <p>Semua MAC yang pernah ditolak sudah punya rule. Perangkat baru yang ditolak
+      <p>Semua perangkat yang pernah ditolak sudah punya aturan. Perangkat baru yang ditolak
         akan muncul di sini otomatis.</p>
     </div>
   <% } else { %>
   <div class="card__body" style="padding-bottom:0">
+    <div class="alert alert--info" role="note" style="margin-bottom:var(--s3)">
+      <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+      <div><strong>Arti tombol:</strong> <strong>Izinkan</strong> membuat aturan izin (perangkat boleh
+        terhubung); <strong>Tolak</strong> membuat aturan tolak permanen sehingga hilang dari daftar ini.</div>
+    </div>
     <p class="card__hint">
-      <%= pending.length %> perangkat ditolak dan belum punya rule. Terbagi per SSID (jaringan).
-      Allow membuat rule izin, Deny membuat rule tolak permanen sehingga hilang dari daftar ini.
+      <%= pending.length %> perangkat ditolak dan belum punya aturan, dikelompokkan per jaringan (SSID).
     </p>
   </div>
   <div class="card__body" style="padding-top:0">
@@ -47,19 +51,19 @@
     <h3 class="rule-group__head">
       <svg class="icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
       <%= ssid %>
-      <span class="badge"><span data-count><%= group.length %></span> pending</span>
+      <span class="badge"><span data-count><%= group.length %></span> menunggu</span>
     </h3>
     <div class="table-wrap">
       <table class="data stackable">
         <thead>
-          <tr><th>MAC</th><th>Hostname</th><th>Device</th><th>Controller</th><th class="num">Percobaan</th><th>Terakhir</th><th class="actions">Keputusan</th></tr>
+          <tr><th>Perangkat (MAC)</th><th>Nama</th><th>Vendor</th><th>Controller</th><th class="num">Percobaan</th><th>Terakhir</th><th class="actions">Keputusan</th></tr>
         </thead>
         <tbody>
           <% group.forEach(p => { %>
           <tr data-mac="<%= p.mac_address %>" data-host="<%= p.hostname || '' %>" data-ctrl="<%= p.controller_name || ('#' + (p.controller_id || '')) %>">
-            <td data-label="MAC" class="mono"><%= p.mac_address %></td>
-            <td data-label="Hostname"><%= p.hostname || '—' %></td>
-            <td data-label="Device">
+            <td data-label="Perangkat" class="mono"><%= p.mac_address %></td>
+            <td data-label="Nama"><%= p.hostname || '—' %></td>
+            <td data-label="Vendor">
               <% const vendor = vendorOf(p.mac_address); %>
               <% if (vendor) { %><span class="card__hint"><%= vendor %></span><% } else { %>—<% } %>
             </td>
@@ -82,7 +86,7 @@
                 <% if (p.hostname) { %><input type="hidden" name="device_name" value="<%= p.hostname %>"><% } %>
                 <button class="btn btn--sm <%= decision === 'allow' ? 'btn--primary' : 'btn--danger' %>" type="submit">
                   <svg class="icon" aria-hidden="true"><use href="#<%= decision === 'allow' ? 'i-check' : 'i-x-circle' %>"></use></svg>
-                  <%= decision === 'allow' ? 'Allow' : 'Deny' %>
+                  <%= decision === 'allow' ? 'Izinkan' : 'Tolak' %>
                 </button>
               </form>
               <% }) %>

@@ -28,7 +28,7 @@
   <div class="table-wrap">
     <table class="data stackable">
       <thead>
-        <tr><th>SSID</th><th>Controller</th><th>Status</th><th>Sumber</th><th class="num">Rule</th><th>Terakhir terlihat</th><th class="actions">Aksi</th></tr>
+        <tr><th>SSID</th><th>Controller</th><th>Status</th><th>Sumber</th><th class="num">Aturan</th><th>Terakhir terlihat</th><th class="actions">Aksi</th></tr>
       </thead>
       <tbody>
         <% ssids.forEach(s => { %>
@@ -43,7 +43,7 @@
           <td data-label="Sumber">
             <span class="badge <%= s.auto_created ? 'badge--info' : '' %>"><%= s.auto_created ? 'otomatis' : 'manual' %></span>
           </td>
-          <td data-label="Rule" class="num"><%= s.rule_count %></td>
+          <td data-label="Aturan" class="num"><%= s.rule_count %></td>
           <td data-label="Terakhir terlihat" class="num"><%= fmt(s.last_seen_at) %></td>
           <td data-label="Aksi" class="actions">
             <form action="/ssids/<%= s.id %>/toggle" method="POST">
@@ -69,7 +69,7 @@
     </table>
   </div>
   <div class="card__body">
-    <p class="card__hint">SSID nonaktif menolak semua autentikasi di SSID itu, apa pun status rule MAC-nya.</p>
+    <p class="card__hint">SSID nonaktif menolak semua autentikasi di SSID itu, apa pun status aturan MAC-nya.</p>
   </div>
   <% } %>
 </section>
