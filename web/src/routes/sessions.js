@@ -7,6 +7,12 @@ router.get('/', wrap(async (req, res) => {
   const timeoutRows = await query('SELECT value FROM settings WHERE name = ?', ['online_session_timeout_minutes']);
   const timeout = parseInt(timeoutRows.length ? timeoutRows[0].value : '120', 10) || 120;
   const show = req.query.show === 'all' ? 'all' : 'online';
+  // Filter per controller. The is_online placeholder precedes the WHERE clause,
+  // so params must be ordered [timeout, (online? timeout), (controllerId?)].
+  const controllerId = req.query.controller_id ? Number(req.query.controller_id) : null;
+  if (controllerId !== null && Number.isNaN(controllerId)) {
+    return res.redirect('/sessions?show=' + show);
+  }
 
   const sessions = await query(`
     SELECT s.*, c.name AS controller_name,
@@ -29,11 +35,15 @@ router.get('/', wrap(async (req, res) => {
     )
     LEFT JOIN (SELECT mac_address, MIN(hostname) AS hostname FROM device_hosts GROUP BY mac_address) h ON h.mac_address = s.mac_address
     ${show === 'online' ? 'WHERE s.stopped_at IS NULL AND s.last_update_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)' : ''}
+    ${controllerId !== null ? (show === 'online' ? 'AND s.controller_id = ?' : 'WHERE s.controller_id = ?') : ''}
     ORDER BY s.last_update_at DESC
     LIMIT 500
-  `, show === 'online' ? [timeout, timeout] : [timeout]);
+  `, show === 'online'
+    ? (controllerId !== null ? [timeout, timeout, controllerId] : [timeout, timeout])
+    : (controllerId !== null ? [timeout, controllerId] : [timeout]));
 
-  res.render('sessions/index', { sessions, timeout, show });
+  const controllers = await query('SELECT id, name FROM controllers ORDER BY name');
+  res.render('sessions/index', { sessions, timeout, show, controllers, controller_id: req.query.controller_id || '' });
 }));
 
 module.exports = router;

@@ -74,7 +74,10 @@
   var approvalsCard = document.getElementById('approvals-card');
   if (approvalsCard) {
     var pageSize = parseInt(approvalsCard.dataset.pageSize, 10) || 10;
-    var groups = Array.prototype.slice.call(approvalsCard.querySelectorAll('.rule-group[data-ssid]'));
+    // Per-SSID groups sit inside an outer per-cloudkey details section; the
+    // controller summary is also a .rule-group but has no data-more, so it's
+    // harmless to include it in the paging/search scan.
+    var groups = Array.prototype.slice.call(approvalsCard.querySelectorAll('.rule-group[data-ssid], .rule-group[data-ctrl]'));
     var searchInput = document.getElementById('approvals-q');
 
     function visibleRows(group) {

@@ -297,13 +297,14 @@ const CASES = {
               controller_name: null, status: 'allow', owner_name: 'B', device_name: 'D',
               note: 'n', updated_at: now, last_seen_at: now, ssid_group_id: 1, group_name: 'Karyawan',
               hostname: null }],
-    rulesBySsid: { 'S': [{ id: 1, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: null,
+    ctrlGroups: { '0\0S': [{ id: 1, mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: null,
               controller_name: null, status: 'allow', owner_name: 'B', device_name: 'D',
               note: 'n', updated_at: now, last_seen_at: now, ssid_group_id: 1, group_name: 'Karyawan',
               hostname: null }] },
-    ssids: ['S'],
+    ctrlNames: { 0: 'Semua jaringan' },
+    flat: true, showControllerPrefix: false,
     controllers: [{ id: 1, name: 'C' }], filters: { q: '', status: '', controller_id: '', ssid: '' },
-    ssidOptions: ['S'],
+    ssidOptions: [{ controller_id: 1, ssid_name: 'S' }],
     imported: '3', skipped: '1', error: 'e'
   },
   'rules/form': { rule: {}, controllers: [{ id: 1, name: 'C' }],
@@ -311,9 +312,9 @@ const CASES = {
   'approvals/index': {
     pending: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
                 controller_name: 'C', last_seen: now, hit_count: 3, hostname: null }],
-    pendingBySsid: { 'S': [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
-                controller_name: 'C', last_seen: now, hit_count: 3, hostname: null }] },
-    ssids: ['S'],
+    pendingByCtrl: { '1': { name: 'C', ssids: { 'S': [{
+              mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
+              controller_name: 'C', last_seen: now, hit_count: 3, hostname: null }] } } },
     APPROVALS_PAGE_SIZE: 10,
     error: 'e', approved: '1'
   },
@@ -339,6 +340,9 @@ const CASES = {
     controllers: [{ id: 1, name: 'C' }], total: 1, page: 2, pages: 3,
     filters: { mac: '', ssid: '', result: '', controller_id: '', from: '', to: '' }
   },
+  // The config-reserved local check expects sessions/index to render; we handle
+  // it via MAXLEN-free render cases below.
+  // (sessions/index locals updated in the CASES block.)
   'sessions/index': {
     sessions: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_name: 'C',
                  session_id: 'sid', started_at: now, last_update_at: now, stopped_at: null,
@@ -350,7 +354,7 @@ const CASES = {
                  session_id: 'sid2', started_at: now, last_update_at: now, stopped_at: now,
                  duration_seconds: 10, is_online: 0,
                  owner_name: null, device_name: null, rule_status: null, hostname: null }],
-    timeout: 120, show: 'all'
+    timeout: 120, show: 'all', controllers: [{ id: 1, name: 'C' }], controller_id: ''
   },
   'admins/index': {
     accounts: [{ id: 1, email: 'a@b.c', enabled: 1, created_at: now, last_login: now },
@@ -396,6 +400,54 @@ for (const [view, locals] of Object.entries(CASES)) {
     }
   }
 }
+
+// The multi-controller /rules branch must split the composite key on the REAL
+// NUL (routes build it via ' '; the view's SEP is String.fromCharCode(0)).
+// If the separators ever drift apart, split() yields length-1 parts, ctrl
+// becomes NaN, and every controller head renders "NaN" — silently.
+const NUL = '\0';
+const multiRules = [
+  { id: 1, controller_id: 2, controller_name: 'Kantor', ssid_name: 'Office', mac_address: 'aa:bb:cc:dd:ee:01', status: 'allow' },
+  { id: 2, controller_id: 2, controller_name: 'Kantor', ssid_name: 'Guest', mac_address: 'aa:bb:cc:dd:ee:02', status: 'deny' },
+];
+const multiGroups = { ['2' + NUL + 'Office']: [multiRules[0]], ['2' + NUL + 'Guest']: [multiRules[1]] };
+const multiNames = new Map([[2, 'Kantor']]); // the route builds a Map; the view uses .get()
+const multiHtml = ejs.render(fs.readFileSync(path.join(VIEWS, 'rules/index.ejs'), 'utf8'), {
+  ...shell, ...CASES['rules/index'],
+  rules: multiRules, ctrlGroups: multiGroups, ctrlNames: multiNames,
+  flat: false, showControllerPrefix: true,
+  // The dropdown prefix pulls ctrlNames.get(controller_id) — it must resolve
+  // for every controller that appears in the data, else it prints "undefined".
+  ssidOptions: [{ controller_id: 2, ssid_name: 'Office' }, { controller_id: 2, ssid_name: 'Guest' }],
+}, { filename: path.join(VIEWS, 'rules/index.ejs'), root: VIEWS, views: [VIEWS] });
+assert.ok(multiHtml.includes('Kantor'), 'multi-controller render must show the controller name');
+assert.ok(!multiHtml.includes('NaN'), 'multi-controller render must not leak NaN');
+// The per-group tables must render INSIDE the group loop — a loop that closes
+// too early yields one monolithic table and unclosed sections. Each group's
+// head is followed by its own table, so a 2-controller × 2-ssid mock must
+// contain several 'Kantor' heads and balanced rule-group open/close tags.
+assert.ok((multiHtml.match(/Kantor/g) || []).length >= 2,
+  'multi-controller render must repeat the controller head per group');
+const openTags = (multiHtml.match(/<section class="rule-group">/g) || []).length;
+assert.ok(openTags >= 2, 'multi-controller render must emit a rule-group section per group');
+// Count the group's own closing </section> — those that are NOT the card/
+// empty-state closes. Each group section opens with class="rule-group" and
+// closes with a bare </section> on its own line before the loop's `});`.
+const bareCloses = (multiHtml.match(/^  <\/section>$/gm) || []).length;
+assert.equal(openTags, bareCloses, 'each rule-group open must have its own closing </section>');
+// The dropdown's scoped label uses ctrlNames.get() — bracket access on a Map
+// would print 'undefined'.
+assert.ok(!multiHtml.includes('undefined'), 'multi-controller render must not leak undefined');
+
+// q search must not crash: rules.js builds the WHERE from c.name (the join),
+// not the nonexistent r.controller_name — a non-empty q would 500 otherwise.
+// Only the q-branch WHERE matters (the view legitimately prints r.controller_name).
+const rulesRoute = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'rules.js'), 'utf8');
+const qClause = (rulesRoute.match(/where\.push\('\(r\.mac_address[^)]*\)'\)/g) || []).join('');
+assert.ok(!qClause.includes('r.controller_name'),
+  'rules.js: q search WHERE references r.controller_name (no such column) — must use c.name');
+assert.ok(qClause.includes('c.name LIKE ?'),
+  'rules.js: q search WHERE must include c.name LIKE ?');
 assert.equal(Object.keys(CASES).length, rendered.size,
   `${rendered.size} view dirender oleh route, tapi hanya ${Object.keys(CASES).length} punya kasus render`);
 

@@ -11,7 +11,7 @@
 <% if (imported) { %>
 <div class="alert alert--success" role="status" data-autodismiss>
   <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
-  <div><strong><%= imported %> baris tersimpan.</strong><%= skipped ? ` ${skipped} baris dilewati.` : '' %></div>
+  <div><strong><%= imported %> baris tersimpan.</strong><%= skipped ? (' ' + skipped + ' baris dilewati.') : '' %></div>
 </div>
 <% } %>
 
@@ -51,7 +51,7 @@
         </select>
       </div>
       <div class="field">
-        <label class="field__label" for="f-ctrl">Jangkauan</label>
+        <label class="field__label" for="f-ctrl">Pilih CloudKey</label>
         <select id="f-ctrl" name="controller_id">
           <option value="">Semua</option>
           <option value="global" <%= filters.controller_id === 'global' ? 'selected' : '' %>>Semua jaringan</option>
@@ -65,7 +65,8 @@
         <select id="f-ssid" name="ssid">
           <option value="">Semua</option>
           <% (typeof ssidOptions !== 'undefined' ? ssidOptions : []).forEach(s => { %>
-          <option value="<%= s %>" <%= String((filters && filters.ssid) || '') === String(s) ? 'selected' : '' %>><%= s %></option>
+          <% const opt = s && typeof s === 'object' ? s : { ssid_name: s }; %>
+          <option value="<%= opt.ssid_name %>" <%= String((filters && filters.ssid) || '') === String(opt.ssid_name) ? 'selected' : '' %>><%= opt.ssid_name %><%= showControllerPrefix && opt.controller_id ? (' — ' + ctrlNames.get(opt.controller_id)) : '' %></option>
           <% }) %>
         </select>
       </div>
@@ -90,18 +91,23 @@
     </div>
   <% } else { %>
   <div class="card__body" style="padding-bottom:0">
-    <p class="card__hint">Dikelompokkan per jaringan (SSID). <%= rules.length %> aturan — maksimal 500 per halaman.
+    <p class="card__hint">Dikelompokkan per CloudKey, lalu per jaringan (SSID). <%= rules.length %> aturan — maksimal 500 per halaman.
       <% if (filters.q || filters.status || filters.controller_id || filters.ssid) { %>Filter aktif — persempit atau bersihkan untuk melihat semua.<% } %></p>
   </div>
-  <% ssids.forEach(ssid => { const group = rulesBySsid[ssid];
-       const allow = group.filter(r => r.status === 'allow');
-       const others = group.filter(r => r.status !== 'allow'); %>
+  <% const SEP = String.fromCharCode(0); %>
+  <% const groups = flat ? [{ ctrl: 0, ssidLabel: filters.ssid || 'Semua jaringan', group: rules }] : Object.keys(ctrlGroups).sort((a, b) => { const ca = Number(a.split(SEP)[0]); const cb = Number(b.split(SEP)[0]); return (ca === 0 && cb !== 0 ? -1 : ca !== 0 && cb === 0 ? 1 : ca - cb); }).map(key => ({ ctrl: Number(key.split(SEP)[0]), ssidLabel: key.split(SEP)[1], group: ctrlGroups[key] })); %>
+  <% groups.forEach(g => { const allow = g.group.filter(r => r.status === 'allow'); const others = g.group.filter(r => r.status !== 'allow'); const icon = flat ? 'wifi' : 'router'; %>
   <section class="rule-group">
     <h3 class="rule-group__head">
-      <svg class="icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
-      <%= ssid %>
-      <span class="badge"><%= group.length %> aturan</span>
+      <svg class="icon" aria-hidden="true"><use href="#i-<%= icon %>"></use></svg>
+      <%= g.ctrl === 0 && flat ? g.ssidLabel : ctrlNames.get(g.ctrl) %>
+      <span class="badge"><%= g.group.length %> aturan</span>
     </h3>
+    <% if (!flat) { %>
+    <h4 class="rule-group__subhead rule-group__subhead--allow">
+      <span><%= g.ssidLabel %> <span class="card__hint">(<%= ctrlNames.get(g.ctrl) %>)</span></span>
+    </h4>
+    <% } %>
     <% if (allow.length) { %>
     <h4 class="rule-group__subhead rule-group__subhead--allow">
       <span>Izinkan</span><span class="badge"><%= allow.length %></span>
@@ -217,7 +223,7 @@
     </details>
     <% } %>
   </section>
-  <% }) %>
+  <% }); %>
   <% } %>
 </section>
 <section class="card">

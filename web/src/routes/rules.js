@@ -34,11 +34,11 @@ router.get('/', wrap(async (req, res) => {
     const like = `%${q}%`;
     const asMac = normalizeMac(q);
     if (asMac) {
-      where.push('(r.mac_address = ? OR r.mac_address LIKE ? OR r.ssid_name LIKE ? OR r.owner_name LIKE ? OR r.device_name LIKE ?)');
-      params.push(asMac, like, like, like, like);
+      where.push('(r.mac_address = ? OR r.mac_address LIKE ? OR r.ssid_name LIKE ? OR r.owner_name LIKE ? OR r.device_name LIKE ? OR c.name LIKE ?)');
+      params.push(asMac, like, like, like, like, like);
     } else {
-      where.push('(r.mac_address LIKE ? OR r.ssid_name LIKE ? OR r.owner_name LIKE ? OR r.device_name LIKE ?)');
-      params.push(like, like, like, like);
+      where.push('(r.mac_address LIKE ? OR r.ssid_name LIKE ? OR r.owner_name LIKE ? OR r.device_name LIKE ? OR c.name LIKE ?)');
+      params.push(like, like, like, like, like);
     }
   }
   if (status === 'inactive') {
@@ -70,26 +70,39 @@ router.get('/', wrap(async (req, res) => {
     ORDER BY r.ssid_name, r.created_at DESC
     LIMIT 500
   `, params);
-  // Group per SSID, urut abjad — tampilan /rules jadi per-jaringan. Filter
-  // aktif (q/status/controller) dipertahankan; kalau filter dipakai, grouping
-  // tetap jalan cuma hasilnya sudah dipersempit.
-  const rulesBySsid = rules.reduce((acc, r) => {
-    const key = r.ssid_name || '(tanpa SSID)';
+  // Grouping key: controller first, SSID second — the multi-CloudKey layer.
+  // NULL/global → 0 (renders as "Semua jaringan"), the 0000 separator keeps
+  // "1" + "RF" and "12" + "" from colliding (NUL appears in neither). Filters
+  // already narrow `rules`, so this one reduce serves every mode.
+  const ctrlNames = new Map([...new Set(rules.map(r => r.controller_id || 0))]
+    .sort((a, b) => a - b || 0)
+    .map(c => [c, c === 0 ? 'Semua jaringan' : (rules.find(r => r.controller_id === c).controller_name || '#' + c)]));
+  const ctrlGroups = rules.reduce((acc, r) => {
+    const ctrl = r.controller_id || 0;
+    const key = ctrl + '\u0000' + (r.ssid_name || '(tanpa SSID)');
     (acc[key] = acc[key] || []).push(r);
     return acc;
   }, {});
+  // Single controller / active filter → single flat layer. Labels and ordering
+  // live in the view; this just decides depth.
+  const flat = new Set([...rules.map(r => r.controller_id || 0)]).size <= 1;
   const controllers = await query('SELECT id, name FROM controllers ORDER BY name');
-  // Dropdown SSID selalu dari semua rule (DISTINCT), bukan dari rulesBySsid hasil
-  // filter — kalau dari hasil filter, dropdown menyusut ke satu opsi begitu
-  // filter SSID dipilih, dan tak ada jalan untuk pindah ke SSID lain.
-  const ssidRows = await query('SELECT DISTINCT ssid_name FROM mac_rules ORDER BY ssid_name');
+  // Dropdown SSID always covers every rule (DISTINCT), never the filtered
+  // result — filtering would collapse it to one option. Now controller-aware:
+  // a scoped traversal shows "controller — ssid" labels.
+  const ssidRows = await query('SELECT DISTINCT r.controller_id, r.ssid_name FROM mac_rules r GROUP BY r.controller_id, r.ssid_name ORDER BY r.ssid_name');
+  // Only the full (multi-controller, unfiltered) traversal shows the
+  // controller prefix; a narrow view would make every label prefix-identical.
+  const showControllerPrefix = !flat && !controller_id && !ssid;
   res.render('rules/index', {
     rules,
-    rulesBySsid,
-    ssids: Object.keys(rulesBySsid).sort(),
+    ctrlGroups,
+    ctrlNames,
     controllers,
+    flat,
+    showControllerPrefix,
     filters: { q: q || '', status: status || '', controller_id: controller_id || '', ssid: ssid || '' },
-    ssidOptions: ssidRows.map(r => r.ssid_name),
+    ssidOptions: ssidRows,
     imported: req.query.imported,
     skipped: req.query.skipped,
     error: req.query.error

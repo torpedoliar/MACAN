@@ -46,7 +46,16 @@
              autocomplete="off">
     </form>
   </div>
-  <% ssids.forEach(ssid => { const group = pendingBySsid[ssid]; %>
+  <% Object.keys(pendingByCtrl).forEach(ctrl => {
+       const cgroup = pendingByCtrl[ctrl];
+       const ctrlLabel = ctrl === '0' ? 'Tidak dikenal' : cgroup.name; %>
+  <details class="rule-group__details" open data-ctrl="<%= ctrl %>">
+    <summary class="rule-group__head">
+      <svg class="icon" aria-hidden="true"><use href="#i-<%= ctrl === '0' ? 'x-circle' : 'router' %>"></use></svg>
+      <%= ctrlLabel %>
+      <span class="badge"><%= Object.values(cgroup.ssids).reduce((n, g) => n + g.length, 0) %> menunggu</span>
+    </summary>
+  <% Object.keys(cgroup.ssids).forEach(ssid => { const group = cgroup.ssids[ssid]; %>
   <section class="rule-group" data-ssid="<%= ssid %>">
     <h3 class="rule-group__head">
       <svg class="icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
@@ -104,6 +113,8 @@
     </div>
     <% } %>
   </section>
+  <% }) %>
+  </details>
   <% }) %>
   <% } %>
 </section>

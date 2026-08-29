@@ -18,6 +18,15 @@
          <%= show === 'online' ? 'aria-current="true"' : '' %>>Hanya online</a>
       <a class="btn btn--sm <%= show === 'all' ? 'btn--primary' : '' %>" href="/sessions?show=all"
          <%= show === 'all' ? 'aria-current="true"' : '' %>>Semua</a>
+      <form action="/sessions" method="GET" class="field field--inline">
+        <input type="hidden" name="show" value="<%= show %>">
+        <select name="controller_id" aria-label="Pilih CloudKey" onchange="this.form.submit()">
+          <option value="">Pilih CloudKey</option>
+          <% controllers.forEach(c => { %>
+          <option value="<%= c.id %>" <%= String(controller_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
+          <% }) %>
+        </select>
+      </form>
     </div>
   </div>
 

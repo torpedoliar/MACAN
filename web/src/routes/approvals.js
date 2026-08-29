@@ -19,22 +19,24 @@ const clean = v => {
 
 router.get('/', wrap(async (req, res) => {
   const pending = await query(PENDING_LIST);
-  // Kelompokkan per SSID — pola yang sama dengan /rules. Filter active
-  // tetap dipertahankan; grouping cuma menyusun ulang tampilan.
-  const pendingBySsid = pending.reduce((acc, p) => {
+  // Dua lapis: per controller (0 = tanpa controller / "tidak dikenal"), lalu
+  // per SSID di dalamnya — pola yang sama dengan /rules. Controller dengan 0
+  // pending tidak dirender sama sekali (lihat view).
+  const pendingByCtrl = pending.reduce((acc, p) => {
+    const ctrl = p.controller_id || 0;
+    const group = (acc[ctrl] = acc[ctrl] || { name: p.controller_name || '#' + ctrl, ssids: {} });
     const key = p.ssid_name || '(tanpa SSID)';
-    (acc[key] = acc[key] || []).push(p);
+    (group.ssids[key] = group.ssids[key] || []).push(p);
     return acc;
   }, {});
   res.render('approvals/index', {
     pending,
-    pendingBySsid,
-    ssids: Object.keys(pendingBySsid).sort(),
+    pendingByCtrl,
     APPROVALS_PAGE_SIZE,
     error: req.query.error,
     approved: req.query.approved
   });
-}));
+}))
 
 router.post('/', wrap(async (req, res) => {
   const mac = normalizeMac(req.body.mac_address);
