@@ -210,7 +210,7 @@ for (const file of files) {
 // must carry maxlength — and it must match the column, not merely exist.
 const MAXLEN = {
   'controllers/form': { name: 120, ip_address: 45, shared_secret: 255, note: 65535, unifi_host: 255, unifi_site: 64, unifi_api_key: 255, unifi_username: 160, unifi_password: 255 },
-  'rules/form': { mac_address: 17, ssid_name: 128, owner_name: 160, device_name: 160 },
+  'rules/form': { mac_address: 17, owner_name: 160, device_name: 160 },
   'ssids/index': { ssid_name: 128 },
   'admins/form': { email: 255, password: 255 }
 };
@@ -308,7 +308,9 @@ const CASES = {
     imported: '3', skipped: '1', error: 'e'
   },
   'rules/form': { rule: {}, controllers: [{ id: 1, name: 'C' }],
-                  groups: [{ id: 1, name: 'Karyawan', member_count: 2 }], error: 'e' },
+                  groups: [{ id: 1, name: 'Karyawan', member_count: 2 }],
+                  ssidOptions: [{ ssid_name: 'Kantor', controller_id: '1' }, { ssid_name: 'Guest', controller_id: null }],
+                  error: 'e' },
   'approvals/index': {
     pending: [{ mac_address: 'aa:bb:cc:dd:ee:ff', ssid_name: 'S', controller_id: 1,
                 controller_name: 'C', last_seen: now, hit_count: 3, hostname: null }],

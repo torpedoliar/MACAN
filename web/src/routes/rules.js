@@ -232,7 +232,10 @@ router.get('/new', wrap(async (req, res) => {
       (SELECT COUNT(*) FROM ssid_group_members m WHERE m.group_id = g.id) AS member_count
     FROM ssid_groups g ORDER BY g.name
   `);
-  res.render('rules/form', { rule: {}, controllers, groups, error: null });
+  // SSID options come from the inventory so a rule can't be typed for an SSID
+  // that doesn't exist (or with a different casing) — T13.
+  const ssidRows = await query('SELECT ssid_name, controller_id FROM ssids WHERE enabled = 1 ORDER BY ssid_name');
+  res.render('rules/form', { rule: {}, controllers, groups, ssidOptions: ssidRows, error: null });
 }));
 
 async function saveRule(req, res, id) {
@@ -254,11 +257,12 @@ async function saveRule(req, res, id) {
       (SELECT COUNT(*) FROM ssid_group_members m WHERE m.group_id = g.id) AS member_count
     FROM ssid_groups g ORDER BY g.name
   `);
+  const ssidRows = await query('SELECT ssid_name, controller_id FROM ssids WHERE enabled = 1 ORDER BY ssid_name');
   const rerender = error => res.status(400).render('rules/form', {
     rule: { id, controller_id: controllerId, ssid_name: ssid, mac_address: req.body.mac_address, status,
             ssid_group_id: groupId,
             owner_name: req.body.owner_name, device_name: req.body.device_name, note: req.body.note },
-    controllers, groups, error
+    controllers, groups, ssidOptions: ssidRows, error
   });
 
   if (!mac) return rerender('MAC address tidak valid. Gunakan 12 karakter hex, contoh aa:bb:cc:dd:ee:ff.');
@@ -314,7 +318,8 @@ router.get('/:id/edit', wrap(async (req, res) => {
       (SELECT COUNT(*) FROM ssid_group_members m WHERE m.group_id = g.id) AS member_count
     FROM ssid_groups g ORDER BY g.name
   `);
-  res.render('rules/form', { rule: rules[0], controllers, groups, error: null });
+  const ssidRows = await query('SELECT ssid_name, controller_id FROM ssids WHERE enabled = 1 ORDER BY ssid_name');
+  res.render('rules/form', { rule: rules[0], controllers, groups, ssidOptions: ssidRows, error: null });
 }));
 
 router.post('/:id', wrap((req, res) => saveRule(req, res, req.params.id)));

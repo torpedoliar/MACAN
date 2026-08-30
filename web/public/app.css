@@ -576,3 +576,133 @@ code.mono { background: var(--surface-2); padding: 1px 5px; border-radius: var(-
   .ascii-art { font-size: .42rem; }
   .about__hero { padding: var(--s4) var(--s2); }
 }
+
+/* ===== Auth Login Identity — Predator Network ===== */
+/* Scoped solely to .auth pages; never touches panel admin layout or logic. */
+.auth {
+  min-height: 100dvh;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Scanline texture overlay — very subtle, technical feel */
+.auth::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 3px,
+    rgba(245, 158, 11, 0.03) 3px,
+    rgba(245, 158, 11, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ambient gradient glow — predator eye hint */
+.auth__background {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.15;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(245, 158, 11, 0.08), transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(245, 158, 11, 0.05), transparent 50%);
+}
+
+.auth__brand {
+  justify-content: center;
+}
+
+.sidebar__mark {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+  animation: shimmer 2s infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar__mark::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 1px solid var(--accent);
+  opacity: 0.3;
+  border-radius: var(--radius);
+  animation: shimmer-ring 2s infinite;
+}
+
+.sidebar__name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.card {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.card__hint {
+  margin-bottom: var(--s5);
+}
+
+.field {
+  margin-bottom: var(--s4);
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.input-wrapper input {
+  transition: border-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.input-wrapper input:hover {
+  border-color: var(--text-faint);
+}
+
+.input-wrapper input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  background: var(--surface);
+}
+
+.btn--primary {
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.btn--primary:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
+}
+
+.btn--primary:active {
+  transform: scale(0.98);
+}
+
+@keyframes shimmer {
+  0% { background: var(--accent); }
+  50% { background: var(--accent-hover); }
+  100% { background: var(--accent); }
+}
+
+@keyframes shimmer-ring {
+  0% { transform: translateX(-100%); opacity: 0.3; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+@media (max-width: 480px) {
+  .sidebar__mark { width: 48px; height: 48px; font-size: 1.3rem; }
+  .sidebar__name { font-size: 1rem; }
+}

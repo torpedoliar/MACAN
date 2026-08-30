@@ -25,10 +25,19 @@
           <span class="field__hint" id="mac-hint">12 karakter hex. Pemisah <code class="mono">:</code>, <code class="mono">-</code>, <code class="mono">.</code>, atau tanpa pemisah — semua dinormalkan.</span>
         </div>
         <div class="field">
-          <label class="field__label" for="ssid_name">SSID</label>
-          <input type="text" id="ssid_name" name="ssid_name"
-                 value="<%= rule.ssid_name || '' %>" maxlength="128" spellcheck="false"
-                 aria-describedby="ssid-hint">
+          <label class="field__label" for="ssid_name">SSID<span class="field__req" aria-hidden="true">*</span></label>
+          <select id="ssid_name" name="ssid_name" aria-describedby="ssid-hint">
+            <option value="">— pilih satu SSID, atau pakai Grup SSID di bawah —</option>
+            <% const curSsid = rule.ssid_name || ''; const inInventory = (ssidOptions || []).some(s => (typeof s === 'object' ? s.ssid_name : s) === curSsid); %>
+            <% if (curSsid && !inInventory) { %>
+            <option value="<%= curSsid %>" selected><%= curSsid %> — SSID tidak ditemukan di inventaris</option>
+            <% } %>
+            <% (ssidOptions || []).forEach(s => { const ssidName = typeof s === 'object' ? s.ssid_name : s; %>
+            <option value="<%= ssidName %>" <%= curSsid === ssidName ? 'selected' : '' %>>
+              <%= ssidName %><% if (typeof s === 'object' && s.controller_id) { %> • <%= (controllers.find(c => String(c.id) === String(s.controller_id)) || {}).name || ('#' + s.controller_id) %><% } %>
+            </option>
+            <% }) %>
+          </select>
           <span class="field__hint" id="ssid-hint">Kosongkan kalau memakai grup SSID di bawah.</span>
         </div>
       </div>
