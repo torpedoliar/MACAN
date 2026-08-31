@@ -20,9 +20,9 @@
   --text-faint: #75756f;
   --text-inverse: #ffffff;
 
-  --accent: #4a44d6;
-  --accent-hover: #3b35b8;
-  --accent-soft: #ecebfb;
+  --accent: #b45309;   /* amber-gold — aksen tunggal MACan (light: kontras AA di putih) */
+  --accent-hover: #92400e;
+  --accent-soft: #fdf1e0;
   --accent-on: #ffffff;
 
   --success: #14682f;
@@ -35,7 +35,7 @@
   --info: #0f5f86;
   --info-soft: #e4f2f9;
 
-  --focus: #4a44d6;
+  --focus: #b45309;
   /* ponytail: shadow-1/2 dipangkas ke none — Swiss = no decorative elevation.
      shadow-3 tetap untuk modal/drawer yang butuh pemisah fisik dari bg. */
   --shadow-1: none;
@@ -77,30 +77,30 @@
 /* Dark tokens: neutral desaturated palette, single lightened accent. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) { color-scheme: dark;
-    --bg: #0f0f0e; --surface: #181816; --surface-2: #20201d; --surface-3: #2a2a26;
-    --border: #30302c; --border-strong: #484842;
-    --text: #f0f0ec; --text-muted: #a8a8a0; --text-faint: #888880; --text-inverse: #0f0f0e;
-    --accent: #9d97ff; --accent-hover: #b3aeff; --accent-soft: #232544; --accent-on: #12142b;
-    --success: #6ee7a0; --success-soft: #14291d;
-    --danger: #ff9b93; --danger-hover: #ffb5af; --danger-soft: #2e1917;
+    --bg: #0b0a09; --surface: #151311; --surface-2: #1e1b18; --surface-3: #27231f;
+    --border: #2b2724; --border-strong: #453f39;
+    --text: #f5f2ec; --text-muted: #a8a29a; --text-faint: #888175; --text-inverse: #0b0a09;
+    --accent: #f59e0b; --accent-hover: #fbbf24; --accent-soft: rgba(245,158,11,.12); --accent-on: #0b0a09;
+    --success: #34d399; --success-soft: rgba(52,211,153,.12);
+    --danger: #f87171; --danger-hover: #fca5a5; --danger-soft: rgba(248,113,113,.12);
     --warning: #f2b968; --warning-soft: #2c2113;
-    --info: #7cc7ec; --info-soft: #12262f;
-    --focus: #9d97ff;
+    --info: #7cc7ec; --info-soft: rgba(124,199,236,.10);
+    --focus: #f59e0b;
     --shadow-1: none;
     --shadow-2: none;
     --shadow-3: 0 12px 32px rgba(0, 0, 0, .7);
   }
 }
 :root[data-theme="dark"] { color-scheme: dark;
-  --bg: #0f0f0e; --surface: #181816; --surface-2: #20201d; --surface-3: #2a2a26;
-  --border: #30302c; --border-strong: #484842;
-  --text: #f0f0ec; --text-muted: #a8a8a0; --text-faint: #888880; --text-inverse: #0f0f0e;
-  --accent: #9d97ff; --accent-hover: #b3aeff; --accent-soft: #232544; --accent-on: #12142b;
-  --success: #6ee7a0; --success-soft: #14291d;
-  --danger: #ff9b93; --danger-hover: #ffb5af; --danger-soft: #2e1917;
+  --bg: #0b0a09; --surface: #151311; --surface-2: #1e1b18; --surface-3: #27231f;
+  --border: #2b2724; --border-strong: #453f39;
+  --text: #f5f2ec; --text-muted: #a8a29a; --text-faint: #888175; --text-inverse: #0b0a09;
+  --accent: #f59e0b; --accent-hover: #fbbf24; --accent-soft: rgba(245,158,11,.12); --accent-on: #0b0a09;
+  --success: #34d399; --success-soft: rgba(52,211,153,.12);
+  --danger: #f87171; --danger-hover: #fca5a5; --danger-soft: rgba(248,113,113,.12);
   --warning: #f2b968; --warning-soft: #2c2113;
-  --info: #7cc7ec; --info-soft: #12262f;
-  --focus: #9d97ff;
+  --info: #7cc7ec; --info-soft: rgba(124,199,236,.10);
+  --focus: #f59e0b;
   --shadow-1: none;
   --shadow-2: none;
   --shadow-3: 0 12px 32px rgba(0, 0, 0, .7);
@@ -275,6 +275,38 @@ a:hover { text-decoration: underline; }
 .btn--icon { min-width: var(--tap); padding: var(--s2); }
 .btn[disabled], .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 .btn-row { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+
+/* ===== Motion panel — impressive tapi fungsional (vanilla CSS) ===== */
+/* Reveal bertahap saat load; stagger via animation-delay inline-less trick. */
+@keyframes panelRise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.card, .rule-group, .stats { animation: panelRise .4s var(--ease) both; }
+.card:nth-child(2), .rule-group:nth-child(2), .stats:nth-child(2) { animation-delay: .06s; }
+.card:nth-child(3), .rule-group:nth-child(3), .stats:nth-child(3) { animation-delay: .12s; }
+.card:nth-child(n+4), .rule-group:nth-child(n+4) { animation-delay: .18s; }
+
+/* Hover lift pada tombol utama di seluruh panel */
+.btn--primary { transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.btn--primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 28%, transparent); }
+.btn--primary:active { transform: translateY(0); box-shadow: none; }
+
+/* Badge pending berdenyut halus — waspada tanpa berisik */
+.nav__count { animation: countPulse 2.4s ease-in-out infinite; }
+@keyframes countPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent); }
+}
+
+/* Row hover lebih hidup di tabel data */
+table.data tbody tr { transition: background var(--dur-fast) var(--ease); }
+table.data tbody tr:hover { background: var(--surface-2); }
+
+/* Hormati reduced-motion di seluruh panel */
+@media (prefers-reduced-motion: reduce) {
+  .card, .rule-group, .stats, .nav__count { animation: none !important; }
+}
 
 /* ===== cards ============================================================= */
 .card {
@@ -578,14 +610,14 @@ code.mono { background: var(--surface-2); padding: 1px 5px; border-radius: var(-
 }
 
 /* ===== Auth Login Identity — Predator Network ===== */
-/* Scoped solely to .auth pages; never touches panel admin layout or logic. */
+/* Scoped solely to .auth (login page); panel admin tidak tersentuh. */
 .auth {
   min-height: 100dvh;
   position: relative;
   overflow: hidden;
 }
 
-/* Scanline texture overlay — very subtle, technical feel */
+/* Scanline texture — halus, teknis (amber tipis di atas bg) */
 .auth::before {
   content: "";
   position: absolute;
@@ -594,115 +626,96 @@ code.mono { background: var(--surface-2); padding: 1px 5px; border-radius: var(-
     to bottom,
     transparent,
     transparent 3px,
-    rgba(245, 158, 11, 0.03) 3px,
-    rgba(245, 158, 11, 0.03) 4px
+    color-mix(in srgb, var(--accent) 3%, transparent) 3px,
+    color-mix(in srgb, var(--accent) 3%, transparent) 4px
   );
   pointer-events: none;
   z-index: 0;
 }
 
-/* Ambient gradient glow — predator eye hint */
-.auth__background {
+/* Ambient glow — "mata predator" di dua sudut */
+.auth::after {
+  content: "";
   position: absolute;
   inset: 0;
-  z-index: -1;
-  opacity: 0.15;
   background:
-    radial-gradient(circle at 30% 20%, rgba(245, 158, 11, 0.08), transparent 50%),
-    radial-gradient(circle at 70% 80%, rgba(245, 158, 11, 0.05), transparent 50%);
+    radial-gradient(circle at 28% 22%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 50%),
+    radial-gradient(circle at 72% 78%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 50%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .auth__brand {
   justify-content: center;
-}
-
-.sidebar__mark {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
-  animation: shimmer 2s infinite;
   position: relative;
-  overflow: hidden;
+  z-index: 2;
 }
 
-.sidebar__mark::after {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  border: 1px solid var(--accent);
-  opacity: 0.3;
-  border-radius: var(--radius);
-  animation: shimmer-ring 2s infinite;
+/* Brand mark: amber + ring hidup (dramatis, sesuai mockup) */
+.auth .sidebar__mark {
+  width: 56px; height: 56px; font-size: 1.45rem;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 30%, transparent);
+  animation: markPulse 2.6s ease-in-out infinite;
+  position: relative;
 }
 
-.sidebar__name {
+@keyframes markPulse {
+  0%, 100% { box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 22%, transparent); }
+  50% { box-shadow: 0 6px 28px color-mix(in srgb, var(--accent) 45%, transparent); }
+}
+
+.auth .sidebar__name {
   font-family: var(--font-mono);
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -.03em;
 }
 
-.card {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+.auth__card { position: relative; z-index: 2; }
+
+.auth .card {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
 }
 
-.card__hint {
-  margin-bottom: var(--s5);
+/* ===== Motion entry — impressive tapi cepat (staggered reveal) ===== */
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.field {
-  margin-bottom: var(--s4);
+.auth__brand { opacity: 0; animation: riseIn .45s var(--ease) .05s forwards; }
+.auth .card  { opacity: 0; animation: riseIn .5s var(--ease) .16s forwards; }
+.auth .field { opacity: 0; animation: riseIn .4s var(--ease) forwards; }
+.auth .field:nth-of-type(1) { animation-delay: .3s; }
+.auth .field:nth-of-type(2) { animation-delay: .38s; }
+.auth form .btn { opacity: 0; animation: riseIn .4s var(--ease) .46s forwards; }
+
+/* Hormati preferensi reduced-motion: semua animasi dimatikan */
+@media (prefers-reduced-motion: reduce) {
+  .auth::before, .auth::after { display: none; }
+  .auth__brand, .auth .card, .auth .field, .auth form .btn {
+    animation: none; opacity: 1;
+  }
+  .auth .sidebar__mark { animation: none; }
 }
 
-.input-wrapper {
-  position: relative;
-}
-
-.input-wrapper input {
-  transition: border-color var(--dur-fast) var(--ease-out),
-              box-shadow var(--dur-fast) var(--ease-out);
-}
-
-.input-wrapper input:hover {
-  border-color: var(--text-faint);
-}
-
-.input-wrapper input:focus {
+/* Focus ring amber pada input login */
+.auth .field input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
-.btn--primary {
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
-  transition: background var(--dur-fast) var(--ease-out),
-              border-color var(--dur-fast) var(--ease-out),
-              transform var(--dur-fast) var(--ease-out),
-              box-shadow var(--dur-fast) var(--ease-out);
+/* Tombol utama login: glow + micro-lift saat hover */
+.auth form .btn--primary {
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 26%, transparent);
 }
-
-.btn--primary:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
+.auth form .btn--primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--accent) 40%, transparent);
 }
-
-.btn--primary:active {
-  transform: scale(0.98);
-}
-
-@keyframes shimmer {
-  0% { background: var(--accent); }
-  50% { background: var(--accent-hover); }
-  100% { background: var(--accent); }
-}
-
-@keyframes shimmer-ring {
-  0% { transform: translateX(-100%); opacity: 0.3; }
-  100% { transform: translateX(100%); opacity: 0; }
-}
+.auth form .btn--primary:active { transform: translateY(0); }
 
 @media (max-width: 480px) {
-  .sidebar__mark { width: 48px; height: 48px; font-size: 1.3rem; }
-  .sidebar__name { font-size: 1rem; }
+  .auth .sidebar__mark { width: 48px; height: 48px; font-size: 1.3rem; }
+  .auth .sidebar__name { font-size: 1.05rem; }
 }
