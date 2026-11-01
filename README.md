@@ -2,12 +2,13 @@
 
 # MACan
 
-**MAC Authentication untuk UniFi — RADIUS, tanpa 802.1X, tanpa portal.**
+**English** · [Bahasa Indonesia](README.id.md)
 
-Daftarkan MAC address perangkat, tentukan boleh atau tidak per SSID, dan biarkan
-UniFi menanyakannya ke MACan setiap kali perangkat mencoba tersambung.
+**MAC authentication for UniFi over RADIUS, with no 802.1X and no captive portal.**
 
-[![FreeRADIUS](https://img.shields.io/badge/FreeRADIUS-3.2-004488?logo=freebsd&logoColor=white)](https://freeradius.org)
+Register device MAC addresses, decide per SSID whether each one may connect, and let UniFi ask MACan every time a device tries to join.
+
+[![FreeRADIUS](https://img.shields.io/badge/FreeRADIUS-3.2-004488)](https://freeradius.org)
 [![MariaDB](https://img.shields.io/badge/MariaDB-11-003545?logo=mariadb&logoColor=white)](https://mariadb.org)
 [![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Docker Compose](https://img.shields.io/badge/Docker%20Compose-ready-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
@@ -15,26 +16,33 @@ UniFi menanyakannya ke MACan setiap kali perangkat mencoba tersambung.
 
 </div>
 
----
+## Contents
 
-## Kenapa MACan
+- [Why MACan](#why-macan)
+- [Interface](#interface)
+- [Quick start](#quick-start)
+- [Updating](#updating)
+- [Connecting UniFi](#connecting-unifi)
+- [How decisions are made](#how-decisions-are-made)
+- [Features](#features)
+- [UniFi API integration](#unifi-api-integration)
+- [Security](#security)
+- [Project layout](#project-layout)
+- [Development](#development)
+- [License](#license)
 
-UniFi bisa memakai RADIUS MAC authentication, tapi tidak menyediakan tempat
-untuk mengelola daftar MAC-nya. MACan mengisi bagian itu: satu panel web untuk
-mengatur MAC, SSID, dan controller — plus jejak audit dari setiap keputusan
-autentikasi.
+## Why MACan
 
-- **Tanpa sertifikat, tanpa supplicant.** Perangkat IoT, printer, mesin absensi, dan CCTV yang tidak bisa 802.1X tetap bisa diautentikasi.
-- **Per SSID, bukan per site.** MAC yang sama boleh diizinkan di `Office-WiFi` dan diblokir di `Guest-WiFi`.
-- **Fail-closed.** Controller tak dikenal, SSID belum diaktifkan, atau mode maintenance aktif → tolak. Tidak pernah "izinkan karena ragu".
-- **Setiap keputusan tercatat.** Accept dan reject sama-sama masuk log dengan alasannya, jadi bisa ditelusuri.
+UniFi supports RADIUS MAC authentication but gives you nowhere to manage the MAC list. MACan fills that gap with one web panel for MACs, SSIDs, and controllers, plus an audit trail of every authentication decision.
 
----
+- Devices that cannot do 802.1X, such as IoT sensors, printers, attendance terminals, and CCTV, can still be authenticated without certificates or a supplicant.
+- Rules apply per SSID. The same MAC can be allowed on `Office-WiFi` and blocked on `Guest-WiFi`.
+- The system fails closed. An unknown controller, an SSID that has not been enabled, or active maintenance mode always results in a reject.
+- Accepts and rejects are both logged with a reason, so every decision can be traced.
 
-## Tampilan
+## Interface
 
-Panel gelap/terang, sidebar dengan badge approval, kartu statistik yang bisa
-diklik ke halaman berfilter, dan grafik accept/reject 24 jam.
+The panel comes in dark and light themes, with a sidebar that shows pending approvals, statistic cards that open filtered pages, and a 24-hour accept/reject chart. The interface language is Indonesian.
 
 ```
 ┌──────────────────┬──────────────────────────────────────────────────────────┐
@@ -47,7 +55,7 @@ diklik ke halaman berfilter, dan grafik accept/reject 24 jam.
 │  AKSES           │                                                          │
 │  ▸ MAC Rules     │  Aktivitas 24 jam                                        │
 │  ▸ Approval  (3) │   ▁▂▅█▆▃▂▁▁▂▄▆█▇▅▃▂▁▁▂▃▅▆▄   ■ accept  ■ reject          │
-│  ▸ SSID          │                                                          │
+│  ▸ SSID / Grup   │                                                          │
 │  ▸ Controller    │  Reject terakhir                                         │
 │                  │  aa:bb:cc:dd:ee:ff  Office-WiFi  rule tidak ditemukan    │
 │  PEMANTAUAN      │  11:22:33:44:55:66  Guest-WiFi   rule deny               │
@@ -62,11 +70,9 @@ diklik ke halaman berfilter, dan grafik accept/reject 24 jam.
 └──────────────────┴──────────────────────────────────────────────────────────┘
 ```
 
----
+## Quick start
 
-## Mulai cepat
-
-Butuh Docker dan Docker Compose. Tidak perlu Node atau MariaDB di host.
+You only need Docker and Docker Compose. Node and MariaDB do not have to be installed on the host.
 
 ```bash
 git clone https://github.com/torpedoliar/MACAN.git
@@ -74,310 +80,252 @@ cd MACAN
 ./setup.sh
 ```
 
-`setup.sh` memeriksa Docker lalu menjalankan **wizard empat langkah**:
+`setup.sh` checks Docker, then runs a four-step wizard:
 
-1. **Database** — `DB_PASSWORD` dan `DB_ROOT_PASSWORD` digenerate acak. Tidak ditanyakan; password ini hanya dipakai antar container.
-2. **Kunci sesi** — `SESSION_SECRET` digenerate acak (32 byte).
-3. **Admin pertama** — email dan password diminta. Password diketik dua kali, tidak ditampilkan, minimal 8 karakter.
-4. **Akses panel** — "Pakai HTTPS?" menentukan `COOKIE_SECURE`. Default `n`, yaitu aman untuk HTTP plain.
+1. Database: `DB_PASSWORD` and `DB_ROOT_PASSWORD` are generated at random without prompting, because they are only used between containers.
+2. Session key: `SESSION_SECRET` is generated at random (32 bytes).
+3. First admin: you enter an email and a password. The password is typed twice, never echoed, and must be at least 8 characters.
+4. Panel access: the "Use HTTPS?" question sets `COOKIE_SECURE`. The default is `n`, which is safe for plain HTTP.
 
-Setelah itu `.env` ditulis dengan permission `600`, compose dibangun, dan skrip
-menunggu sampai panel menjawab sebelum menampilkan URL dan langkah berikutnya.
+The script then writes `.env` with mode `600`, builds the stack, and waits for the panel to respond before printing the URL and next steps.
 
-Aman dijalankan berulang: nilai yang sudah terisi tidak ditanyakan lagi dan tidak
-ditimpa — wizard hanya menanyakan yang masih kosong. Tanpa terminal (mis. lewat
-pipe atau CI) skrip tetap men-generate ketiga rahasia, lalu berhenti dan
-menyebutkan nilai mana yang harus diisi manual.
+It is safe to run again. Values that are already set are neither asked for nor overwritten; the wizard only asks for what is still empty. Without a terminal (for example through a pipe or CI), the script still generates the three secrets, then stops and lists the values you must fill in by hand.
 
 <details>
-<summary>Atau setup manual</summary>
+<summary>Manual setup</summary>
 
 ```bash
 cp .env.example .env
-# sunting .env, isi semua nilai "change-..."
+# edit .env and replace every "change-..." value
 docker compose up -d --build
 ```
 
-| Variabel | Isi |
+| Variable | Value |
 |---|---|
-| `DB_PASSWORD` | password user database `macan` |
-| `DB_ROOT_PASSWORD` | password root MariaDB |
-| `SESSION_SECRET` | string acak panjang, mis. hasil `openssl rand -hex 32` |
-| `ADMIN_EMAIL` | email login admin pertama |
-| `ADMIN_PASSWORD` | password admin pertama |
-| `COOKIE_SECURE` | `0` untuk HTTP, `1` **hanya** kalau di belakang HTTPS |
+| `DB_PASSWORD` | password for the `macan` database user |
+| `DB_ROOT_PASSWORD` | MariaDB root password |
+| `SESSION_SECRET` | a long random string, for example from `openssl rand -hex 32` |
+| `ADMIN_EMAIL` | login email of the first admin |
+| `ADMIN_PASSWORD` | password of the first admin |
+| `COOKIE_SECURE` | `0` for HTTP, `1` only behind HTTPS |
 
-Docker Compose menginterpolasi isi `.env`, jadi `$` di dalam password harus
-ditulis `$$` — `Pa$word` sampai ke container sebagai `Pa` saja. `setup.sh`
-melakukan escape ini sendiri.
+Docker Compose interpolates `.env`, so a `$` inside a password must be written as `$$`. Otherwise `Pa$word` reaches the container as `Pa`. `setup.sh` escapes this for you.
 
 </details>
 
-Buka `http://<ip-server>:880` dan login dengan `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
-Skema database dan admin pertama dibuat otomatis saat boot pertama.
+Open `http://<server-ip>:880` and log in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`. The database schema and the first admin are created automatically on first boot.
 
-| Port | Protokol | Fungsi |
+| Port | Protocol | Purpose |
 |---|---|---|
-| `880` | tcp | panel web |
+| `880` | tcp | web panel |
 | `1812` | udp | RADIUS authentication |
 | `1813` | udp | RADIUS accounting |
 
-> `COOKIE_SECURE=1` di atas HTTP plain membuat cookie sesi tidak pernah terkirim —
-> login akan gagal tanpa pesan error. Biarkan `0` sampai HTTPS benar-benar aktif.
+> `COOKIE_SECURE=1` over plain HTTP means the session cookie is never sent, so login fails without an error message. Keep it at `0` until HTTPS is actually in place.
 
-`GET /health` (tanpa login) menjawab `{"status":"ok"}` kalau database terjangkau,
-`503` kalau tidak — dipakai `setup.sh` dan cocok untuk monitoring uptime.
+`GET /health` (no login) returns `{"status":"ok"}` when the database is reachable and `503` when it is not. `setup.sh` uses it, and it works well for uptime monitoring.
 
----
+### Forgotten admin password
 
-## Update
+```bash
+bash reset-admin-password.sh
+```
+
+The script asks for the admin email, reads the database credentials from `.env`, and resets that account to the default password written in the script. Because the default is in the repository, change it right after logging in. Override the database container name with the `CONTAINER` variable if needed.
+
+## Updating
 
 ```bash
 ./update.sh
 ```
 
-Lima langkah, berhenti di langkah pertama yang gagal:
+Five steps, stopping at the first one that fails:
 
-1. **Backup database** ke `backups/macan_<tanggal>.sql` lewat `mariadb-dump
-   --single-transaction` — konsisten tanpa mengunci tabel, jadi RADIUS tetap
-   menjawab auth selama backup. Backup gagal = update dibatalkan, tidak ada satu
-   pun yang berubah.
-2. **`git pull --ff-only origin main`.** Gagal karena perubahan lokal? Container
-   masih versi lama, tidak ada yang rusak.
-3. **Build image `web` dan `radius`.** `radius` wajib ikut: file konfigurasinya
-   di-`COPY` ke dalam image, jadi restart saja tidak memuat perubahan.
-4. **Recreate container `web` dan `radius`** dengan `--no-deps`.
-5. **Tunggu `/health` menjawab 200.** Migrasi jalan saat `web` start, jadi ini
-   sekaligus bukti skema sudah tersinkron.
+1. Back up the database to `backups/macan_<date>.sql` with `mariadb-dump --single-transaction`. The dump is consistent without locking tables, so RADIUS keeps answering during the backup. If the backup fails, the update is cancelled and nothing changes.
+2. `git pull --ff-only origin main`. If this fails because of local changes, the containers are still on the old version and nothing is broken.
+3. Build the `web` and `radius` images. `radius` has to be rebuilt because its configuration is copied into the image; a restart alone does not load changes.
+4. Recreate the `web` and `radius` containers with `--no-deps`.
+5. Wait for `/health` to return 200. Migrations run when `web` starts, so this step also confirms the schema is up to date.
 
-Container `db` tidak pernah di-stop, di-rebuild, atau dihapus. `down` dan
-`down -v` tidak pernah dipanggil, jadi volume `db_data` tidak mungkin tersentuh.
-Sepuluh backup terbaru disimpan, sisanya dihapus.
+The `db` container is never stopped, rebuilt, or removed. `down` and `down -v` are never called, so the `db_data` volume is never touched. The ten most recent backups are kept and older ones are deleted.
 
-Kembali ke data sebelum update:
+To roll back to the data from before an update:
 
 ```bash
 docker exec -i $(docker compose ps --format '{{.Name}}' db) \
   sh -c 'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" macan' \
-  < backups/macan_<tanggal>.sql
+  < backups/macan_<date>.sql
 ```
 
-> Isi `backups/` memuat shared secret RADIUS dan token Telegram. Folder ini ada
-> di `.gitignore`; jangan disalin ke tempat yang lebih longgar izinnya.
+> Files in `backups/` contain RADIUS shared secrets, UniFi credentials, and Telegram tokens. The folder is in `.gitignore`; do not copy it anywhere with looser permissions.
 
----
+## Connecting UniFi
 
-## Menyambungkan UniFi
+### 1. Add the controller in MACan
 
-**1. Tambahkan controller di MACan.** Menu **Controller → Tambah**. Isi nama,
-IP sumber paket RADIUS, dan shared secret.
+Go to Controller → Tambah and enter a name, the source IP of the RADIUS packets, and the shared secret.
 
-Yang mengirim paket RADIUS belum tentu controller-nya. Pada UniFi, AP biasanya
-menghubungi RADIUS **langsung**, jadi IP sumbernya adalah IP AP — bukan IP
-controller. Karena itu kolom IP menerima dua bentuk:
+The device that sends RADIUS packets is not always the controller. In UniFi, access points usually contact RADIUS directly, so the source IP is the AP's address. The IP field therefore accepts two forms:
 
-| Isi | Kapan dipakai |
+| Value | When to use it |
 |---|---|
-| `10.10.0.100` | satu host saja yang mengirim (mis. controller relay RADIUS) |
-| `10.10.0.0/24` | seluruh AP di satu subnet mengirim langsung |
+| `10.10.0.100` | a single host sends the packets (for example a controller relaying RADIUS) |
+| `10.10.0.0/24` | every AP in a subnet sends packets directly |
 
-Baris host menang atas baris subnet yang memuatnya, jadi satu AP bisa diberi
-entri sendiri tanpa mengganggu entri subnet. Prefix `/8`–`/32`; shared secret
-berlaku untuk seluruh subnet yang didaftarkan, jadi pilih subnet sesempit
-mungkin. Tidak perlu restart: controller baru dikenali pada paket pertama, dan
-perubahan IP atau shared secret berlaku paling lama 5 menit (FreeRADIUS
-menyimpan entri client lama selama itu).
+A host entry takes priority over a subnet entry that contains it, so one AP can have its own entry without affecting the subnet entry. Accepted prefixes are `/8` to `/32`. The shared secret applies to the whole registered subnet, so keep subnets as narrow as possible.
 
-**2. Buat RADIUS profile di UniFi.** *Settings → Profiles → RADIUS → Create New*:
+Controller changes do not need a restart. FreeRADIUS looks up unknown source IPs in the `controllers` table on each packet (`radius/macan_clients.conf`) and caches the result for 5 minutes. A new controller works on its first packet; changing the IP or shared secret, disabling, or deleting a controller takes effect within 5 minutes. To clear the cache immediately, run this inside the radius container: `radmin -e "del client ipaddr <ip>"`.
 
-| Field | Nilai |
+### 2. Create a RADIUS profile in UniFi
+
+Settings → Profiles → RADIUS → Create New:
+
+| Field | Value |
 |---|---|
-| Auth Server | IP server MACan |
+| Auth Server | MACan server IP |
 | Auth Port | `1812` |
-| Auth Secret | shared secret yang sama dengan di MACan |
-| Accounting Server | IP server MACan |
+| Auth Secret | the same shared secret as in MACan |
+| Accounting Server | MACan server IP |
 | Accounting Port | `1813` |
-| Accounting | aktifkan |
+| Accounting | enabled |
 
-**3. Aktifkan MAC authentication di WiFi.** *Settings → WiFi → \<SSID\> →
-Advanced → MAC Authentication*, pilih RADIUS profile tadi.
+### 3. Enable MAC authentication on the WiFi network
 
-**4. Aktifkan SSID di MACan.** Paket pertama dari UniFi membuat SSID muncul
-otomatis di menu **SSID** dengan status **nonaktif** — ini disengaja. Aktifkan
-dulu sebelum ada MAC yang bisa lolos.
+Settings → WiFi → \<SSID\> → Advanced → MAC Authentication, then select the RADIUS profile.
 
-> Perubahan controller tidak butuh restart. FreeRADIUS mencari IP sumber yang belum
-> dikenal di tabel `controllers` per paket (`radius/macan_clients.conf`), lalu
-> menyimpan hasilnya 5 menit. Jadi: controller **baru** langsung jalan pada paket
-> pertama; ganti IP, ganti shared secret, nonaktifkan, atau hapus berlaku paling
-> lama 5 menit karena entri lama masih tersimpan. Butuh langsung? Dari dalam
-> container radius: `radmin -e "del client ipaddr <ip>"`.
+### 4. Enable the SSID in MACan
 
----
+The first packet from UniFi makes the SSID appear automatically under SSID with a disabled status. This is deliberate: an operator has to enable it before any MAC can get through.
 
-## Cara keputusan diambil
+## How decisions are made
 
-Setiap Access-Request dievaluasi berurutan. Berhenti di kecocokan pertama.
+Each Access-Request is evaluated in order and stops at the first match.
 
 ```
 Access-Request
       │
-      ├─ Calling-Station-Id bukan 12 hex?           → REJECT  MAC tidak valid
-      ├─ IP pengirim tak ada di controllers?        → REJECT  controller tak dikenal
-      ├─ maintenance_mode = 1?                      → REJECT  mode maintenance
-      ├─ SSID belum diaktifkan operator?            → REJECT  SSID nonaktif
+      ├─ Calling-Station-Id is not 12 hex digits?   → REJECT  invalid MAC
+      ├─ sender IP not in controllers?              → REJECT  unknown controller
+      ├─ maintenance_mode = 1?                      → REJECT  maintenance mode
+      ├─ SSID not enabled by an operator?           → REJECT  SSID disabled
       │
-      └─ cari rule (scope controller dulu, lalu global)
+      └─ look up a rule (controller scope first, then global)
               ├─ allow     → ACCEPT
-              ├─ deny      → REJECT  rule deny
+              ├─ deny      → REJECT  deny rule
               ├─ disabled  → REJECT  rule disabled
-              └─ tak ada   → REJECT  rule tidak ditemukan  ← muncul di Approval
+              └─ none      → REJECT  no rule found  ← shown in Approval
 ```
 
-MAC dinormalisasi lebih dulu, jadi keempat format ini dianggap sama:
+MACs are normalized first, so these four formats are treated as the same address:
 
 ```
 aa:bb:cc:dd:ee:ff    aabbccddeeff    aa-bb-cc-dd-ee-ff    aabb.ccdd.eeff
 ```
 
-Rule bisa **global** (berlaku di semua controller) atau **per controller**.
-Kalau keduanya cocok, yang per controller menang.
+A rule is either global (all controllers) or scoped to one controller. When both match, the controller-scoped rule wins.
 
----
+## Features
 
-## Fitur
+### Access
 
-**MAC Rules** — CRUD dengan status `allow` / `deny` / `disabled`, kolom pemilik,
-nama perangkat, dan catatan. Pencarian menerima MAC dengan atau tanpa titik dua.
+- MAC Rules: create, edit, and delete rules with status `allow`, `deny`, or `disabled`, plus owner, device name, hostname, and note fields. Search accepts MACs with or without colons. The page is grouped per SSID, with allow rules expanded and deny or disabled rules collapsed. The new and edit forms offer an SSID dropdown taken from the inventory.
+- Approval: MACs rejected because they have no rule are collected on one page, grouped per SSID, with search and pagination. One click turns an entry into an allow rule. The page is based on the absence of a rule, not on the reject message text, so it keeps working if policy messages change.
+- SSID: unknown SSIDs appear automatically on their first packet, disabled.
+- SSID groups: several SSIDs can be combined into a group, and one group rule then applies to every member. A group rule is stored as one `mac_rules` row per member, so the FreeRADIUS lookup stays a single `SELECT` per MAC and SSID pair. Groups can be renamed and their members changed; member rules are re-synced automatically.
+- Controller: the list of NAS clients with shared secret, host or subnet IP, and optional UniFi credentials. Duplicate IPs are refused, and so is deleting a controller that is still referenced by an SSID, rule, or log entry.
+- Multiple CloudKeys: the Rules, Approval, and Sessions pages can be filtered per controller, so one MACan instance can serve several CloudKeys or UDMs.
 
-**Approval** — MAC yang ditolak karena belum punya rule dikumpulkan di satu
-halaman. Satu klik untuk mengubahnya menjadi rule allow. Halaman ini dihitung
-dari *ketiadaan rule*, bukan dari teks alasan reject, jadi tidak rusak kalau
-pesan kebijakan berubah.
+### Monitoring
 
-**SSID** — SSID yang belum dikenal muncul otomatis saat paket pertama masuk,
-dengan status nonaktif. Operator harus mengaktifkannya secara sadar.
+- Online sessions: built from accounting packets and showing who is connected. Owner and device names come from the matching MAC rule (controller scope before global, in the same order as `default.conf`). Sessions without a rule are labeled as such. `Accounting-On`/`Off` from a rebooting controller closes all of its sessions, and a cron job ends sessions that stop receiving updates.
+- Auth Log: accepts and rejects with reasons, filterable, including the raw packet attributes as JSON.
+- Audit Log: who changed what, and when. Secret values such as bot tokens are never written here.
+- Device vendor: the IEEE OUI table (about 35,000 prefixes) is downloaded from the `linuxnet.ca` mirror and refreshed automatically on the 1st of each month at 03:07, so the panel can show the vendor of every MAC.
 
-**Controller** — daftar NAS beserta shared secret. Menolak IP duplikat, dan
-menolak penghapusan controller yang masih dipakai SSID, rule, atau log.
+### Automation
 
-**Sesi Online** — dibangun dari paket accounting, lengkap dengan *siapa* yang
-terhubung: nama pemilik dan nama perangkat diambil dari rule MAC yang cocok
-(scope controller menang atas global, urutan yang sama dengan `default.conf`).
-Sesi tanpa rule ditandai `tanpa rule`. `Accounting-On`/`Off` dari controller yang
-reboot menutup semua sesinya. Sesi tanpa update melebihi batas waktu ditandai
-selesai oleh cron.
+- Inactivity audit: `allow` rules that have not connected for `inactive_after_days` (default 90, configurable in Settings) are switched to `deny` and marked Inactive. The marker is a separate column (`inactive_since`), not a fourth status, because FreeRADIUS only understands `allow`/`deny`/`disabled`; any other value would read as "no rule found" and the MAC would reappear in Approval. The sweep checks two timestamps, last connection and last admin edit, so a rule that was just re-allowed is not flipped back on the next run. An Inactive filter is available on the MAC Rules page.
+- Notifications: Telegram and/or a generic webhook for reject spikes from one MAC, newly detected SSIDs, and MACs waiting for approval. Time-based deduplication prevents floods.
+- Housekeeping: an hourly cron (at minute 7) prunes logs past their retention period, closes stale sessions, runs the inactivity sweep, and sends pending notifications.
 
-**Audit inaktif** — rule `allow` yang tidak pernah tersambung selama
-`inactive_after_days` (default 90, bisa diubah di Pengaturan) diubah otomatis
-jadi `deny` dan ditandai **Inactive**. Penanda ini kolom terpisah
-(`inactive_since`), bukan nilai status ke-4: FreeRADIUS hanya mengenal
-`allow`/`deny`/`disabled`, dan nilai lain akan dibaca sebagai "rule tidak
-ditemukan" sehingga MAC-nya muncul lagi di Approval seolah belum pernah
-didaftarkan. Sweep memakai dua jam sekaligus — waktu koneksi terakhir *dan*
-waktu edit admin terakhir — supaya rule yang baru di-allow ulang tidak dibalik
-lagi pada tick berikutnya. Filter `Inactive` tersedia di halaman MAC Rules.
+### System
 
-**Admin** — akun per orang, masing-masing login sendiri. Akun tidak bisa dihapus
-(jejak Audit Log merujuk padanya); pencabutan akses dilakukan dengan mematikan
-tanda **Aktif**, yang langsung memblokir login tapi menyisakan riwayatnya. Ada
-pengaman: tidak bisa menonaktifkan akun sendiri, dan tidak bisa menonaktifkan
-admin aktif terakhir.
+- Admins: one account per person, each with its own login. Clearing the Active flag blocks login immediately while keeping the history. Accounts can also be deleted; their Audit Log rows remain and show as "deleted admin". Two guards apply: you cannot delete or deactivate your own account, and the last active admin cannot be deleted or deactivated.
+- CSV import and export with the columns `scope,controller,ssid,mac,status,owner,device,note`. Rows with problems are reported by line number while the other rows are still imported. A sample file can be downloaded from the MAC Rules page.
+- Backup and restore: download all data as JSON. Restore takes three steps: upload, preview the contents, then confirm by typing `GANTI`. Backups from a different installation are refused.
+- Maintenance mode: one click rejects all new authentications and makes the panel refuse data changes with HTTP 503. Existing sessions are not affected because they do not re-authenticate.
+- An About page lists the developer and the repository URL.
 
-**Auth Log** — accept dan reject dengan alasan, bisa difilter, plus atribut
-mentah paket dalam JSON untuk penelusuran.
+## UniFi API integration
 
-**Audit Log** — siapa mengubah apa dan kapan. Nilai rahasia (token bot, dsb.)
-tidak pernah ditulis ke sini.
+Each controller can be given UniFi credentials so MACan can pull device hostnames from UniFi Network:
 
-**Notifikasi** — Telegram dan/atau webhook generik untuk: lonjakan reject dari
-satu MAC, SSID baru terdeteksi, dan MAC menunggu approval. Ada dedupe berbasis
-waktu supaya tidak membanjiri.
+- `unifi_host`, `unifi_site`, and `unifi_api_key` for the UniFi Network Integration API (`/proxy/network/integration/v1`, `X-API-KEY` header). Self-signed certificates are accepted only when TLS verification is turned off for that controller.
+- `unifi_username` and `unifi_password` for the classic API. MACan tries both the UDM login path (`/api/auth/login`) and the CloudKey path (`/api/login`), so hostnames of clients that are currently offline are synced as well.
+- A connection test button checks the classic API login with the entered username and password.
+- Hostnames for all UniFi clients are synced and shown in the Hostname column on the Rules and Approval pages. Fetching follows UniFi's server-side page limit of 200 clients.
 
-**Import/Export CSV** — kolom `scope,controller,ssid,mac,status,owner,device,note`.
-Baris yang bermasalah dilaporkan per nomor baris, baris lain tetap masuk. Ada
-contoh file yang bisa diunduh dari halaman MAC Rules.
+## Security
 
-**Backup & Restore** — unduh seluruh data sebagai JSON. Restore berjalan tiga
-langkah: unggah → pratinjau isinya → konfirmasi dengan mengetik `GANTI`. Backup
-dari instalasi lain ditolak.
+- Admin passwords are hashed with bcrypt. No password is stored in plain text.
+- Sessions are stored in the database rather than in memory, so a restart does not log everyone out.
+- Every form uses a CSRF token. Upload routes verify it after multer has parsed the body, and `self-check` contains an assertion that fails the build if a new upload route forgets to do so.
+- Every query uses parameter binding; no SQL is built from strings.
+- Notification tokens are never sent back to the page and never written to the audit log.
+- `.env` is in `.gitignore`. Replace every default value before using MACan on a production network.
 
-**Mode Maintenance** — sekali klik, semua autentikasi baru ditolak dan panel
-menolak perubahan data dengan HTTP 503. Sesi yang sudah berjalan tidak
-terpengaruh karena tidak melakukan re-auth.
+> The RADIUS shared secret travels over the network in a cryptographically weak form. Run MACan on a management VLAN, not on a network that WiFi clients can reach. For panel access from outside, put it behind an HTTPS reverse proxy and set `COOKIE_SECURE=1`.
 
-**Pembersihan otomatis** — cron tiap jam (menit ke-7) memangkas log melewati
-masa simpan, menutup sesi basi, menjalankan sweep inaktif, dan mengirim
-notifikasi yang tertunda.
-
----
-
-## Keamanan
-
-- Password admin di-hash dengan **bcrypt**. Tidak ada password tersimpan sebagai teks.
-- Sesi disimpan di database (bukan memori), jadi restart tidak melogout semua orang.
-- **CSRF token** pada setiap form. Route unggah memverifikasinya setelah multer selesai mem-parsing body — ada assertion di `self-check` yang menggagalkan build kalau route unggah baru lupa melakukannya.
-- Semua query memakai **parameter binding**, tidak ada penyusunan SQL dari string.
-- Token notifikasi tidak pernah dikirim balik ke halaman dan tidak pernah masuk audit log.
-- `.env` masuk `.gitignore`. Ganti **semua** nilai default sebelum dipakai di jaringan sungguhan.
-
-> RADIUS shared secret melewati jaringan dalam bentuk yang lemah secara
-> kriptografis. Jalankan MACan di VLAN manajemen, bukan di jaringan yang bisa
-> diakses klien WiFi. Untuk akses panel dari luar, taruh di belakang reverse
-> proxy HTTPS lalu set `COOKIE_SECURE=1`.
-
----
-
-## Susunan proyek
+## Project layout
 
 ```
-compose.yaml              tiga service: db, web, radius
-setup.sh                  bootstrap: cek docker, wizard .env, generate secret, up
-update.sh                 update: backup db, git pull, rebuild web+radius, tunggu /health
-db/schema.sql             skema awal, dijalankan MariaDB saat boot pertama
+compose.yaml              three services: db, web, radius
+setup.sh                  bootstrap: check docker, .env wizard, generate secrets, up
+update.sh                 update: back up db, git pull, rebuild web+radius, wait for /health
+reset-admin-password.sh   reset an admin password through the MariaDB container
+db/schema.sql             initial schema, run by MariaDB on first boot
 radius/
-  Dockerfile              FreeRADIUS + tiga file config di bawah
-  default.conf            kebijakan authorize + accounting (inti keputusan)
-  sql.conf                koneksi database, read_clients dari tabel controllers
-  queries.conf            query client/NAS
+  Dockerfile              FreeRADIUS plus the config files below
+  default.conf            authorize and accounting policy (the decision logic)
+  sql.conf                database connection, read_clients from the controllers table
+  queries.conf            client/NAS queries
+  macan_clients.conf      per-packet dynamic controller lookup
 web/
   Dockerfile              node:20-alpine
-  public/app.css          448 baris, 56 design token, dark mode, responsif
-  public/app.js           69 baris vanilla JS, semuanya progressive enhancement
+  public/                 app.css (design tokens, dark mode) and app.js (vanilla JS)
   src/
-    app.js                shell Express: view, middleware, mounting route
-    migrate.js            migrasi idempoten, jalan setiap start
-    middleware.js         session store MySQL, CSRF, maintenance guard, error handler
-    db.js  auth.js  audit.js  notifications.js  cron.js
-    pending.js            definisi "menunggu approval"
-    radius-policy.js      normalisasi MAC, dipakai bersama route
-    routes/               11 route
-    views/                20 template EJS
-  test/self-check.js      compile + render semua view, isi maupun kosong
+    app.js                Express shell: views, middleware, route mounting
+    migrate.js            idempotent migrations, run on every start
+    middleware.js         MySQL session store, CSRF, maintenance guard, error handler
+    radius-policy.js      MAC normalization, shared with routes
+    pending.js            definition of "waiting for approval"
+    ssid-groups.js        expansion of group rules to member SSIDs
+    unifi.js              UniFi Integration API and classic API client
+    oui.js                IEEE OUI vendor table
+    db.js  auth.js  audit.js  notifications.js  cron.js  logo.js
+    routes/               13 route modules
+    views/                EJS templates
+  test/self-check.js      compiles and renders every view, with and without data
 ```
 
-Arsitektur sengaja tipis: tanpa framework frontend, tanpa build step, tanpa ORM.
-`docker compose up` cukup untuk menjalankan semuanya.
+The architecture is deliberately thin: no frontend framework, no build step, no ORM. `docker compose up` is enough to run everything.
 
----
-
-## Pengembangan
+## Development
 
 ```bash
 cd web
 npm install
-npm run self-check     # compile + render semua view, dengan data dan tanpa data
-npm start              # butuh MariaDB; lebih mudah pakai compose
+npm run self-check     # compile and render every view, with and without data
+npm start              # needs MariaDB; compose is easier
 ```
 
-Setelah mengubah file di `radius/`, config-nya di-`COPY` ke dalam image — jadi
-`restart` saja tidak cukup:
+The files in `radius/` are copied into the image, so after changing them a restart is not enough:
 
 ```bash
 docker compose up -d --build radius
 ```
 
-Menguji keputusan tanpa perangkat sungguhan:
+Test a decision without a real device:
 
 ```bash
 docker compose exec radius sh -c 'printf "User-Name=aa:bb:cc:dd:ee:ff\n\
@@ -386,14 +334,12 @@ Called-Station-Id=aa:bb:cc:dd:ee:ff:Office-WiFi\n" \
   | radclient -x 127.0.0.1:1812 auth <shared-secret>'
 ```
 
-Memeriksa config FreeRADIUS: `docker compose exec radius freeradius -XC`
+Check the FreeRADIUS configuration: `docker compose exec radius freeradius -XC`
 
-> Di dalam `radius/default.conf`, kurung kurawal tak berpasangan akan menutup
-> ekspansi `%{sql:...}` lebih awal dan memotong query di tengah. Hindari
-> quantifier seperti `{12}` di dalam regex — termasuk di dalam komentar.
+> Inside `radius/default.conf`, an unbalanced curly brace closes a `%{sql:...}` expansion early and truncates the query. Avoid quantifiers such as `{12}` in regular expressions, including inside comments.
 
----
+## License
 
-## Lisensi
+Released under the [MIT License](LICENSE). Copyright © 2026 torpedoliar.
 
-MIT
+Developed by Yohanes Octavian Rizky ([@torpedoliar](https://github.com/torpedoliar)).
