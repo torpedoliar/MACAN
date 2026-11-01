@@ -42,33 +42,16 @@ UniFi mendukung RADIUS MAC authentication, tetapi tidak menyediakan tempat untuk
 
 ## Tampilan
 
-Panel tersedia dalam tema gelap dan terang, dengan sidebar yang menampilkan jumlah approval, kartu statistik yang bisa diklik ke halaman berfilter, dan grafik accept/reject 24 jam.
+![Dashboard dengan grafik accept/reject 24 jam](docs/screenshots/dashboard.png)
 
-```
-┌──────────────────┬──────────────────────────────────────────────────────────┐
-│  MAC  MACan      │  Dashboard                              ☾  admin@local   │
-│  MAC Auth UniFi  ├──────────────────────────────────────────────────────────┤
-│                  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │
-│  RINGKASAN       │  │ Online   │ │ Approval │ │ MAC Rule │ │ Accept   │     │
-│  ▸ Dashboard     │  │    24    │ │    3  ▲  │ │   142    │ │  1.204   │     │
-│                  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘     │
-│  AKSES           │                                                          │
-│  ▸ MAC Rules     │  Aktivitas 24 jam                                        │
-│  ▸ Approval  (3) │   ▁▂▅█▆▃▂▁▁▂▄▆█▇▅▃▂▁▁▂▃▅▆▄   ■ accept  ■ reject          │
-│  ▸ SSID / Grup   │                                                          │
-│  ▸ Controller    │  Reject terakhir                                         │
-│                  │  aa:bb:cc:dd:ee:ff  Office-WiFi  rule tidak ditemukan    │
-│  PEMANTAUAN      │  11:22:33:44:55:66  Guest-WiFi   rule deny               │
-│  ▸ Sesi Online   │                                                          │
-│  ▸ Auth Log      │                                                          │
-│  ▸ Audit Log     │                                                          │
-│                  │                                                          │
-│  SISTEM          │                                                          │
-│  ▸ Admin         │                                                          │
-│  ▸ Pengaturan    │                                                          │
-│  ▸ Backup        │                                                          │
-└──────────────────┴──────────────────────────────────────────────────────────┘
-```
+*Dashboard dengan grafik accept/reject 24 jam*
+
+| | |
+|:---:|:---:|
+| ![Aturan MAC per CloudKey dan SSID](docs/screenshots/mac-rules.png)<br/>Aturan MAC per CloudKey dan SSID | ![Antrean approval](docs/screenshots/approvals.png)<br/>Antrean approval |
+| ![Sesi online dari accounting RADIUS](docs/screenshots/online-sessions.png)<br/>Sesi online dari accounting RADIUS | ![Halaman login](docs/screenshots/login.png)<br/>Halaman login |
+
+Diambil dari instalasi lokal dengan data demo buatan; nama dan MAC address bersifat fiktif.
 
 ## Mulai cepat
 

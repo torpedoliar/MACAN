@@ -42,33 +42,16 @@ UniFi supports RADIUS MAC authentication but gives you nowhere to manage the MAC
 
 ## Interface
 
-The panel comes in dark and light themes, with a sidebar that shows pending approvals, statistic cards that open filtered pages, and a 24-hour accept/reject chart. The interface language is Indonesian.
+![Dashboard with the 24-hour accept/reject chart](docs/screenshots/dashboard.png)
 
-```
-┌──────────────────┬──────────────────────────────────────────────────────────┐
-│  MAC  MACan      │  Dashboard                              ☾  admin@local   │
-│  MAC Auth UniFi  ├──────────────────────────────────────────────────────────┤
-│                  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │
-│  RINGKASAN       │  │ Online   │ │ Approval │ │ MAC Rule │ │ Accept   │     │
-│  ▸ Dashboard     │  │    24    │ │    3  ▲  │ │   142    │ │  1.204   │     │
-│                  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘     │
-│  AKSES           │                                                          │
-│  ▸ MAC Rules     │  Aktivitas 24 jam                                        │
-│  ▸ Approval  (3) │   ▁▂▅█▆▃▂▁▁▂▄▆█▇▅▃▂▁▁▂▃▅▆▄   ■ accept  ■ reject          │
-│  ▸ SSID / Grup   │                                                          │
-│  ▸ Controller    │  Reject terakhir                                         │
-│                  │  aa:bb:cc:dd:ee:ff  Office-WiFi  rule tidak ditemukan    │
-│  PEMANTAUAN      │  11:22:33:44:55:66  Guest-WiFi   rule deny               │
-│  ▸ Sesi Online   │                                                          │
-│  ▸ Auth Log      │                                                          │
-│  ▸ Audit Log     │                                                          │
-│                  │                                                          │
-│  SISTEM          │                                                          │
-│  ▸ Admin         │                                                          │
-│  ▸ Pengaturan    │                                                          │
-│  ▸ Backup        │                                                          │
-└──────────────────┴──────────────────────────────────────────────────────────┘
-```
+*Dashboard with the 24-hour accept/reject chart*
+
+| | |
+|:---:|:---:|
+| ![MAC rules grouped by CloudKey and SSID](docs/screenshots/mac-rules.png)<br/>MAC rules grouped by CloudKey and SSID | ![Approval queue](docs/screenshots/approvals.png)<br/>Approval queue |
+| ![Online sessions from RADIUS accounting](docs/screenshots/online-sessions.png)<br/>Online sessions from RADIUS accounting | ![Sign-in](docs/screenshots/login.png)<br/>Sign-in |
+
+Captured from a local instance with generated demo data; names and MAC addresses are fictitious.
 
 ## Quick start
 
